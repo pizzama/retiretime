@@ -9,31 +9,22 @@ import Foundation
 import SwiftUI
 
 enum EventType: String, CaseIterable, Identifiable, Codable {
-    case birthday = "生日"
     case anniversary = "纪念日"
     case countdown = "倒计时"
-    case countup = "正计时"
-    case custom = "自定义"
     
     var id: String { self.rawValue }
     
     var icon: String {
         switch self {
-        case .birthday: return "gift"
         case .anniversary: return "calendar"
         case .countdown: return "timer"
-        case .countup: return "clock"
-        case .custom: return "star"
         }
     }
     
     var color: Color {
         switch self {
-        case .birthday: return .blue
         case .anniversary: return .green
         case .countdown: return .orange
-        case .countup: return .purple
-        case .custom: return .pink
         }
     }
 }
@@ -53,13 +44,17 @@ struct Event: Identifiable, Codable {
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: Date())
         let startOfTargetDate = calendar.startOfDay(for: date)
-        let components = calendar.dateComponents([.day], from: startOfToday, to: startOfTargetDate)
-        return components.day ?? 0
+        
+        // 使用timeIntervalSince方法计算日期差异，然后转换为天数
+        let timeInterval = startOfTargetDate.timeIntervalSince(startOfToday)
+        let days = Int(timeInterval / (60 * 60 * 24))
+        return days
     }
     
     // 判断是倒计时还是正计时
     var isCountdown: Bool {
-        return type == .countdown || (type == .custom && daysRemaining > 0)
+        // 所有事件类型都返回true，表示都是倒计时
+        return daysRemaining >= 0
     }
     
     // 格式化显示天数
@@ -101,8 +96,8 @@ extension Event {
         return [
             Event(name: "退休日", date: futureDate1, type: .countdown, notes: "期待已久的退休日", category: "工作"),
             Event(name: "结婚纪念日", date: pastDate1, type: .anniversary, notes: "美好的一天", category: "家庭"),
-            Event(name: "生日", date: futureDate2, type: .birthday, notes: "又要长一岁了", category: "个人"),
-            Event(name: "入职日", date: pastDate2, type: .countup, notes: "开始新工作的日子", category: "工作")
+            Event(name: "生日", date: futureDate2, type: .countdown, notes: "又要长一岁了", category: "个人"),
+            Event(name: "入职日", date: pastDate2, type: .countdown, notes: "开始新工作的日子", category: "工作")
         ]
     }
 }

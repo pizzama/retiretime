@@ -8,10 +8,16 @@
 import SwiftUI
 
 struct EventDetailView: View {
-    let event: Event
-    let eventStore: EventStore
+    // 使用ID而不是直接存储event对象
+    let eventId: UUID
+    @ObservedObject var eventStore: EventStore
     @State private var showingEditSheet = false
     @Environment(\.presentationMode) var presentationMode
+    
+    // 计算属性，每次访问时都会从eventStore获取最新的event
+    var event: Event {
+        eventStore.events.first { $0.id == eventId }!
+    }
     
     var body: some View {
         ScrollView {
@@ -142,6 +148,6 @@ struct DetailRow: View {
 
 #Preview {
     NavigationView {
-        EventDetailView(event: Event.samples[0], eventStore: EventStore())
+        EventDetailView(eventId: Event.samples[0].id, eventStore: EventStore())
     }
 }

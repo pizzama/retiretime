@@ -31,7 +31,7 @@ struct EventListView: View {
                 // 事件列表
                 List {
                     ForEach(eventStore.filteredEvents(by: selectedCategory)) { event in
-                        NavigationLink(destination: EventDetailView(event: event, eventStore: eventStore)) {
+                        NavigationLink(destination: EventDetailView(eventId: event.id, eventStore: eventStore)) {
                             EventRow(event: event)
                         }
                     }
@@ -108,13 +108,13 @@ struct EventRow: View {
             
             // 剩余/已过天数
             VStack(alignment: .trailing, spacing: 2) {
-                Text(event.daysRemaining == 0 ? "今天" : (event.isCountdown ? "倒计时" : "已过"))
+                Text(event.daysRemaining == 0 ? "今天" : (event.isCountdown ? "剩余" : "已过"))
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
                 
-                Text(event.daysRemaining == 0 ? "" : "\(abs(event.daysRemaining))天")
+                Text(event.daysRemaining == 0 ? "0天" : "\(abs(event.daysRemaining))天")
                     .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(event.isCountdown ? .orange : .green)
+                    .foregroundColor(event.isCountdown ? .green : .orange )
             }
         }
         .padding(.vertical, 8)

@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import WidgetKit
 
 class EventStore: ObservableObject {
     @Published var events: [Event] = []
@@ -40,6 +41,7 @@ class EventStore: ObservableObject {
     func addEvent(_ event: Event) {
         events.append(event)
         saveEvents()
+        WidgetCenter.shared.reloadAllTimelines() // 刷新所有 Widget
     }
     
     // 更新事件
@@ -47,6 +49,7 @@ class EventStore: ObservableObject {
         if let index = events.firstIndex(where: { $0.id == event.id }) {
             events[index] = event
             saveEvents()
+            WidgetCenter.shared.reloadAllTimelines() // 刷新所有 Widget
         }
     }
     
@@ -54,6 +57,7 @@ class EventStore: ObservableObject {
     func deleteEvent(_ event: Event) {
         events.removeAll { $0.id == event.id }
         saveEvents()
+        WidgetCenter.shared.reloadAllTimelines() // 刷新所有 Widget
     }
     
     // 获取所有分类
