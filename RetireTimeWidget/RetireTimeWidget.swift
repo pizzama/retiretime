@@ -1,6 +1,6 @@
 //
 //  RetireTimeWidget.swift
-//  retiretime
+//  RetireTimeWidget
 //
 //  Created by Trae AI on 2025/3/5.
 //
@@ -102,15 +102,16 @@ struct WidgetEventRow: View {
             
             Spacer()
             
-            Text(event.daysRemaining == 0 ? "今天" : "\(abs(event.daysRemaining))")
+            Text("\(abs(event.daysRemaining))")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(event.isCountdown ? .orange : .green)
         }
-        .padding(.vertical, 4)
+        .padding(8)
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(8)
     }
 }
 
-// 移除@main属性，改为普通的Widget结构
 struct RetireTimeWidget: Widget {
     let kind: String = "RetireTimeWidget"
 
@@ -119,23 +120,13 @@ struct RetireTimeWidget: Widget {
             RetireTimeWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("退休倒计时")
-        .description("显示最近的倒计时事件")
+        .description("显示最近的退休倒计时事件")
         .supportedFamilies([.systemSmall, .systemMedium])
-    }
-}
-
-// Widget扩展入口点
-struct RetireTimeWidgetBundle: WidgetBundle {
-    var body: some Widget {
-        RetireTimeWidget()
     }
 }
 
 struct RetireTimeWidget_Previews: PreviewProvider {
     static var previews: some View {
-        RetireTimeWidgetEntryView(entry: SimpleEntry(date: Date(), events: Event.samples.prefix(3).map { EventPreview(id: $0.id, name: $0.name, daysRemaining: $0.daysRemaining, isCountdown: $0.isCountdown) }))
-            .previewContext(WidgetPreviewContext(family: .systemSmall))
-        
         RetireTimeWidgetEntryView(entry: SimpleEntry(date: Date(), events: Event.samples.prefix(3).map { EventPreview(id: $0.id, name: $0.name, daysRemaining: $0.daysRemaining, isCountdown: $0.isCountdown) }))
             .previewContext(WidgetPreviewContext(family: .systemMedium))
     }
