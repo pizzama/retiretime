@@ -49,7 +49,7 @@ struct EventDetailView: View {
                     
                     Text(event.daysRemaining == 0 ? "今天" : "\(abs(event.daysRemaining))天")
                         .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(event.isCountdown ? .orange : .green)
+                        .foregroundColor(event.isCountdown ? .green : .orange)
                 }
                 .padding(.vertical, 16)
                 .frame(maxWidth: .infinity)

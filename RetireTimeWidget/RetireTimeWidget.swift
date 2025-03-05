@@ -97,14 +97,14 @@ struct WidgetEventRow: View {
                 
                 Text(event.daysRemaining == 0 ? "今天" : (event.isCountdown ? "还有\(abs(event.daysRemaining))天" : "已过\(abs(event.daysRemaining))天"))
                     .font(.system(size: 12))
-                    .foregroundColor(event.isCountdown ? .orange : .green)
+                    .foregroundColor(event.isCountdown ? .green : .orange )
             }
             
             Spacer()
             
             Text("\(abs(event.daysRemaining))")
                 .font(.system(size: 20, weight: .bold))
-                .foregroundColor(event.isCountdown ? .orange : .green)
+                .foregroundColor(event.isCountdown ? .green : .orange)
         }
         .padding(8)
         .background(Color(UIColor.secondarySystemBackground))
