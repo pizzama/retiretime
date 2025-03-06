@@ -22,6 +22,16 @@ struct EventFormView: View {
     @State private var reminderEnabled: Bool = false
     @State private var reminderDate: Date = Date()
     @State private var category: String = "未分类"
+    @State private var repeatType: RepeatType = .none
+    @State private var showingRepeatOptions: Bool = false
+    
+    // 重复设置状态
+    @State private var weekdaySelection: Int = Calendar.current.component(.weekday, from: Date())
+    @State private var monthDaySelection: Int = Calendar.current.component(.day, from: Date())
+    @State private var yearMonthSelection: Int = Calendar.current.component(.month, from: Date())
+    @State private var yearDaySelection: Int = Calendar.current.component(.day, from: Date())
+    @State private var repeatInterval: Int = 1
+    @State private var showingIntervalPicker: Bool = false
     
     // 分类输入状态
     @State private var showingCategoryInput: Bool = false
@@ -110,6 +120,41 @@ struct EventFormView: View {
                         .frame(minHeight: 100)
                 }
                 
+                // 重复设置
+                Section(header: Text("重复")) {
+                    Picker("重复类型", selection: $repeatType) {
+                        ForEach(RepeatType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+                    
+                    if repeatType != .none {
+                        // 重复间隔选择
+                        Picker("重复间隔", selection: $repeatInterval) {
+                            ForEach(1...30, id: \.self) { interval in
+                                Text("每\(interval)\(getIntervalUnit())").tag(interval)
+                            }
+                        }
+                        
+                        Button(action: {
+                            showingRepeatOptions = true
+                        }) {
+                            HStack {
+                                Text("重复设置")
+                                Spacer()
+                                Text(getRepeatSettingDescription())
+                                    .foregroundColor(.gray)
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 13))
+                            }
+                        }
+                        .actionSheet(isPresented: $showingRepeatOptions) {
+                            getRepeatOptionsActionSheet()
+                        }
+                    }
+                }
+                
                 // 提醒
                 Section(header: Text("提醒")) {
                     Toggle("开启提醒", isOn: $reminderEnabled)
@@ -141,9 +186,138 @@ struct EventFormView: View {
                         self.reminderDate = reminderDate
                     }
                     category = event.category
+                    repeatType = event.repeatType
+                    
+                    // 加载重复设置
+                    if let settings = event.repeatSettings {
+                        if let weekday = settings.weekday {
+                            weekdaySelection = weekday
+                        }
+                        if let monthDay = settings.monthDay {
+                            monthDaySelection = monthDay
+                        }
+                        if let month = settings.month {
+                            yearMonthSelection = month
+                        }
+                        if let yearDay = settings.yearDay {
+                            yearDaySelection = yearDay
+                        }
+                        repeatInterval = settings.interval
+                    }
                 }
             }
         }
+    }
+    
+    // 获取重复间隔单位
+    private func getIntervalUnit() -> String {
+        switch repeatType {
+        case .daily:
+            return "天"
+        case .weekly:
+            return "周"
+        case .monthly:
+            return "月"
+        case .yearly:
+            return "年"
+        default:
+            return ""
+        }
+    }
+    
+    // 获取重复设置描述
+    private func getRepeatSettingDescription() -> String {
+        let intervalStr = repeatInterval > 1 ? "每\(repeatInterval)" : "每"
+        
+        switch repeatType {
+        case .daily:
+            return "\(intervalStr)天"
+        case .weekly:
+            let weekdayNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+            let index = (weekdaySelection - 1) % 7
+            return "\(intervalStr)\(weekdayNames[index])"
+        case .monthly:
+            return "\(intervalStr)月\(monthDaySelection)日"
+        case .yearly:
+            let monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]
+            let monthIndex = (yearMonthSelection - 1) % 12
+            return "\(intervalStr)年\(monthNames[monthIndex])\(yearDaySelection)日"
+        default:
+            return ""
+        }
+    }
+    
+    // 获取重复选项的ActionSheet
+    private func getRepeatOptionsActionSheet() -> ActionSheet {
+        switch repeatType {
+        case .weekly:
+            return ActionSheet(
+                title: Text("选择重复的星期"),
+                buttons: [
+                    .default(Text("周日")) { weekdaySelection = 1 },
+                    .default(Text("周一")) { weekdaySelection = 2 },
+                    .default(Text("周二")) { weekdaySelection = 3 },
+                    .default(Text("周三")) { weekdaySelection = 4 },
+                    .default(Text("周四")) { weekdaySelection = 5 },
+                    .default(Text("周五")) { weekdaySelection = 6 },
+                    .default(Text("周六")) { weekdaySelection = 7 },
+                    .cancel(Text("取消"))
+                ]
+            )
+        case .monthly:
+            // 简化版本，实际应用中可能需要更复杂的选择器
+            let buttons: [ActionSheet.Button] = (1...31).map { day in
+                .default(Text("\(day)日")) { monthDaySelection = day }
+            } + [.cancel(Text("取消"))]
+            
+            return ActionSheet(
+                title: Text("选择每月重复的日期"),
+                buttons: buttons
+            )
+        case .yearly:
+            // 简化版本，实际应用中可能需要更复杂的选择器
+            let monthButtons: [ActionSheet.Button] = (1...12).map { month in
+                let monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]
+                return .default(Text(monthNames[month-1])) { 
+                    yearMonthSelection = month 
+                    // 显示日期选择
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        showingRepeatOptions = true
+                    }
+                }
+            } + [.cancel(Text("取消"))]
+            
+            return ActionSheet(
+                title: Text("选择每年重复的月份和日期"),
+                buttons: monthButtons
+            )
+        default:
+            return ActionSheet(title: Text(""), buttons: [.cancel()])
+        }
+    }
+    
+    // 创建重复设置
+    private func createRepeatSettings() -> RepeatSettings? {
+        if repeatType == .none {
+            return nil
+        }
+        
+        var settings = RepeatSettings()
+        settings.interval = repeatInterval
+        
+        switch repeatType {
+        case .weekly:
+            settings.weekday = weekdaySelection
+        case .monthly:
+            settings.monthDay = monthDaySelection
+        case .yearly:
+            settings.month = yearMonthSelection
+            settings.yearDay = yearDaySelection
+        default:
+            break
+        }
+        
+        return settings
     }
     
     // 保存事件
@@ -161,7 +335,10 @@ struct EventFormView: View {
                 notes: notes,
                 reminderEnabled: reminderEnabled,
                 reminderDate: reminderEnabled ? reminderDate : nil,
-                category: category
+                category: category,
+                repeatType: repeatType,
+                repeatSettings: createRepeatSettings(),
+                lastOccurrence: editingEvent.lastOccurrence
             )
             eventStore.updateEvent(event)
         } else {
@@ -173,7 +350,9 @@ struct EventFormView: View {
                 notes: notes,
                 reminderEnabled: reminderEnabled,
                 reminderDate: reminderEnabled ? reminderDate : nil,
-                category: category
+                category: category,
+                repeatType: repeatType,
+                repeatSettings: createRepeatSettings()
             )
             eventStore.addEvent(event)
         }

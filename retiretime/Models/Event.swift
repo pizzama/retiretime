@@ -8,6 +8,31 @@
 import Foundation
 import SwiftUI
 
+// 重复类型枚举
+enum RepeatType: String, CaseIterable, Identifiable, Codable {
+    case none = "不重复"
+    case daily = "每天重复"
+    case weekly = "每周重复"
+    case monthly = "每月重复"
+    case yearly = "每年重复"
+    
+    var id: String { self.rawValue }
+}
+
+// 重复设置结构体
+struct RepeatSettings: Codable {
+    // 每周重复的星期几 (1-7, 1代表周日)
+    var weekday: Int?
+    // 每月重复的日期 (1-31)
+    var monthDay: Int?
+    // 每年重复的月份 (1-12)
+    var month: Int?
+    // 每年重复的日期 (1-31)
+    var yearDay: Int?
+    // 重复间隔 (例如每2天、每3周等)
+    var interval: Int = 1
+}
+
 enum EventType: String, CaseIterable, Identifiable, Codable {
     case anniversary = "纪念日"
     case countdown = "倒计时"
@@ -38,6 +63,11 @@ struct Event: Identifiable, Codable {
     var reminderEnabled: Bool = false
     var reminderDate: Date?
     var category: String = "未分类"
+    var colorData: CodableColor? = nil // 编码后的颜色数据
+    var icon: String? = nil // 自定义图标
+    var repeatType: RepeatType = .none // 重复类型
+    var repeatSettings: RepeatSettings? = nil // 重复设置
+    var lastOccurrence: Date? = nil // 上次发生日期，用于计算下次重复日期
     
     // 计算剩余天数或已过天数
     var daysRemaining: Int {
@@ -76,6 +106,60 @@ struct Event: Identifiable, Codable {
         formatter.timeStyle = .none
         formatter.locale = Locale(identifier: "zh_CN")
         return formatter.string(from: date)
+    }
+    
+    // 获取显示的图标
+    var displayIcon: String {
+        return icon ?? type.icon
+    }
+    
+    // 获取显示的颜色
+    var displayColor: Color {
+        return color ?? type.color
+    }
+    
+    // 计算属性，用于访问和设置颜色
+    var color: Color? {
+        get {
+            colorData?.color
+        }
+        set {
+            if let newValue = newValue {
+                colorData = CodableColor(color: newValue)
+            } else {
+                colorData = nil
+            }
+        }
+    }
+}
+
+// 用于编码Color的辅助结构体
+struct CodableColor: Codable {
+    let red: Double
+    let green: Double
+    let blue: Double
+    let opacity: Double
+    
+    init(color: Color) {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var opacity: CGFloat = 0
+        
+        #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+        UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &opacity)
+        #elseif os(macOS)
+        NSColor(color).getRed(&red, green: &green, blue: &blue, alpha: &opacity)
+        #endif
+        
+        self.red = Double(red)
+        self.green = Double(green)
+        self.blue = Double(blue)
+        self.opacity = Double(opacity)
+    }
+    
+    var color: Color {
+        Color(.sRGB, red: red, green: green, blue: blue, opacity: opacity)
     }
 }
 
