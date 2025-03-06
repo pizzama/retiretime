@@ -8,6 +8,29 @@
 import Foundation
 import SwiftUI
 
+// 日历类型枚举
+enum CalendarType: String, CaseIterable, Identifiable, Codable {
+    case gregorian = "公历"
+    case lunar = "农历"
+    case islamic = "伊斯兰教历"
+    case hebrew = "犹太教历"
+    case tibetan = "藏历"
+    case indian = "印度历"
+    
+    var id: String { self.rawValue }
+    
+    var icon: String {
+        switch self {
+        case .gregorian: return "calendar"
+        case .lunar: return "moon.stars"
+        case .islamic: return "moon.circle"
+        case .hebrew: return "star.square"
+        case .tibetan: return "mountain.2"
+        case .indian: return "sun.max"
+        }
+    }
+}
+
 // 重复类型枚举
 enum RepeatType: String, CaseIterable, Identifiable, Codable {
     case none = "不重复"
@@ -34,7 +57,7 @@ struct RepeatSettings: Codable {
 }
 
 enum EventType: String, CaseIterable, Identifiable, Codable {
-    case anniversary = "纪念日"
+    case anniversary = "退休日"
     case countdown = "倒计时"
     
     var id: String { self.rawValue }
@@ -59,6 +82,7 @@ struct Event: Identifiable, Codable {
     var name: String
     var date: Date
     var type: EventType
+    var calendarType: CalendarType = .gregorian // 日历类型，默认为公历
     var notes: String = ""
     var reminderEnabled: Bool = false
     var reminderDate: Date?

@@ -18,6 +18,7 @@ struct EventFormView: View {
     @State private var name: String = ""
     @State private var date: Date = Date()
     @State private var type: EventType = .countdown
+    @State private var calendarType: CalendarType = .gregorian // 添加日历类型状态
     @State private var notes: String = ""
     @State private var reminderEnabled: Bool = false
     @State private var reminderDate: Date = Date()
@@ -75,6 +76,16 @@ struct EventFormView: View {
                                 Text(type.rawValue)
                             }
                             .tag(type)
+                        }
+                    }
+                    
+                    Picker("日历类型", selection: $calendarType) {
+                        ForEach(CalendarType.allCases) { calType in
+                            HStack {
+                                Image(systemName: calType.icon)
+                                Text(calType.rawValue)
+                            }
+                            .tag(calType)
                         }
                     }
                 }
@@ -203,6 +214,7 @@ struct EventFormView: View {
                     name = event.name
                     date = event.date
                     type = event.type
+                    calendarType = event.calendarType // 加载日历类型
                     notes = event.notes
                     reminderEnabled = event.reminderEnabled
                     reminderOffset = event.reminderOffset
@@ -368,6 +380,7 @@ struct EventFormView: View {
                 name: name,
                 date: date,
                 type: type,
+                calendarType: calendarType, // 添加日历类型
                 notes: notes,
                 reminderEnabled: reminderEnabled,
                 reminderDate: finalReminderDate,
@@ -386,6 +399,7 @@ struct EventFormView: View {
                 name: name,
                 date: date,
                 type: type,
+                calendarType: calendarType, // 添加日历类型
                 notes: notes,
                 reminderEnabled: reminderEnabled,
                 reminderDate: finalReminderDate,
