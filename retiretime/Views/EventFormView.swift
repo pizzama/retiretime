@@ -29,6 +29,10 @@ struct EventFormView: View {
     @State private var repeatType: RepeatType = .none
     @State private var showingRepeatOptions: Bool = false
     
+    // 退休日特有状态
+    @State private var birthDate: Date = Calendar.current.date(byAdding: .year, value: -30, to: Date()) ?? Date() // 默认30岁
+    @State private var gender: Gender = .male
+    
     // 重复设置状态
     @State private var weekdaySelection: Int = Calendar.current.component(.weekday, from: Date())
     @State private var monthDaySelection: Int = Calendar.current.component(.day, from: Date())
@@ -65,9 +69,6 @@ struct EventFormView: View {
                 Section(header: Text("基本信息")) {
                     TextField("事件名称", text: $name)
                     
-                    DatePicker("日期", selection: $date, displayedComponents: .date)
-                        .datePickerStyle(DefaultDatePickerStyle())
-                    
                     Picker("类型", selection: $type) {
                         ForEach(EventType.allCases) { type in
                             HStack {
@@ -77,6 +78,39 @@ struct EventFormView: View {
                             }
                             .tag(type)
                         }
+                    }
+                    
+                    // 根据事件类型显示不同的日期选择器
+                    if type == .retirement {
+                        // 退休日特有的选项
+                        Picker("性别", selection: $gender) {
+                            ForEach(Gender.allCases) { gender in
+                                Text(gender.rawValue).tag(gender)
+                            }
+                        }
+                        
+                        DatePicker("出生日期", selection: $birthDate, displayedComponents: .date)
+                            .datePickerStyle(DefaultDatePickerStyle())
+                            .onChange(of: birthDate) { _ in
+                                // 当出生日期变化时，自动计算退休日期
+                                calculateRetirementDate()
+                            }
+                            .onChange(of: gender) { _ in
+                                // 当性别变化时，自动计算退休日期
+                                calculateRetirementDate()
+                            }
+                        
+                        // 显示计算出的退休日期（只读）
+                        HStack {
+                            Text("退休日期")
+                            Spacer()
+                            Text(date.formatted(.dateTime.year().month().day()))
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        // 普通事件的日期选择
+                        DatePicker("日期", selection: $date, displayedComponents: .date)
+                            .datePickerStyle(DefaultDatePickerStyle())
                     }
                     
                     Picker("日历类型", selection: $calendarType) {
@@ -226,6 +260,14 @@ struct EventFormView: View {
                     category = event.category
                     repeatType = event.repeatType
                     
+                    // 加载退休日特有属性
+                    if let birthDate = event.birthDate {
+                        self.birthDate = birthDate
+                    }
+                    if let gender = event.gender {
+                        self.gender = gender
+                    }
+                    
                     // 加载重复设置
                     if let settings = event.repeatSettings {
                         if let weekday = settings.weekday {
@@ -358,6 +400,31 @@ struct EventFormView: View {
         return settings
     }
     
+    // 计算退休日期
+    private func calculateRetirementDate() {
+        let calendar = Calendar.current
+        let birthYear = calendar.component(.year, from: birthDate)
+        let birthMonth = calendar.component(.month, from: birthDate)
+        let birthDay = calendar.component(.day, from: birthDate)
+        
+        // 根据性别获取退休年龄
+        let retirementAge = gender.retirementAge
+        
+        // 计算退休年份
+        let retirementYear = birthYear + retirementAge
+        
+        // 创建退休日期
+        var components = DateComponents()
+        components.year = retirementYear
+        components.month = birthMonth
+        components.day = birthDay
+        
+        // 设置退休日期
+        if let retirementDate = calendar.date(from: components) {
+            date = retirementDate
+        }
+    }
+    
     // 保存事件
     private func saveEvent() {
         // 创建新事件或更新现有事件
@@ -380,7 +447,7 @@ struct EventFormView: View {
                 name: name,
                 date: date,
                 type: type,
-                calendarType: calendarType, // 添加日历类型
+                calendarType: calendarType,
                 notes: notes,
                 reminderEnabled: reminderEnabled,
                 reminderDate: finalReminderDate,
@@ -390,7 +457,9 @@ struct EventFormView: View {
                 category: category,
                 repeatType: repeatType,
                 repeatSettings: createRepeatSettings(),
-                lastOccurrence: editingEvent.lastOccurrence
+                lastOccurrence: editingEvent.lastOccurrence,
+                birthDate: type == .retirement ? birthDate : nil,
+                gender: type == .retirement ? gender : nil
             )
             eventStore.updateEvent(event)
         } else {
@@ -399,7 +468,7 @@ struct EventFormView: View {
                 name: name,
                 date: date,
                 type: type,
-                calendarType: calendarType, // 添加日历类型
+                calendarType: calendarType,
                 notes: notes,
                 reminderEnabled: reminderEnabled,
                 reminderDate: finalReminderDate,
@@ -408,16 +477,12 @@ struct EventFormView: View {
                 vibrationEnabled: vibrationEnabled,
                 category: category,
                 repeatType: repeatType,
-                repeatSettings: createRepeatSettings()
+                repeatSettings: createRepeatSettings(),
+                birthDate: type == .retirement ? birthDate : nil,
+                gender: type == .retirement ? gender : nil
             )
             eventStore.addEvent(event)
         }
-        
-        // 注释掉这部分代码，因为EventStore的addEvent和updateEvent方法中已经处理了通知调度
-        // 如果启用了提醒，则调度通知
-        // if reminderEnabled {
-        //     NotificationManager.shared.scheduleNotification(for: event)
-        // }
     }
 }
 
