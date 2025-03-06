@@ -399,10 +399,11 @@ struct EventFormView: View {
             eventStore.addEvent(event)
         }
         
+        // 注释掉这部分代码，因为EventStore的addEvent和updateEvent方法中已经处理了通知调度
         // 如果启用了提醒，则调度通知
-        if reminderEnabled {
-            NotificationManager.shared.scheduleNotification(for: event)
-        }
+        // if reminderEnabled {
+        //     NotificationManager.shared.scheduleNotification(for: event)
+        // }
     }
 }
 
