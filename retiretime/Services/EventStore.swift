@@ -42,14 +42,29 @@ class EventStore: ObservableObject {
         events.append(event)
         saveEvents()
         WidgetCenter.shared.reloadAllTimelines() // 刷新所有 Widget
+        
+        // 如果启用了提醒，则调度通知
+        if event.reminderEnabled {
+            NotificationManager.shared.scheduleNotification(for: event)
+        }
     }
     
     // 更新事件
     func updateEvent(_ event: Event) {
         if let index = events.firstIndex(where: { $0.id == event.id }) {
+            // 移除旧事件的通知
+            if events[index].reminderEnabled {
+                NotificationManager.shared.removeNotifications(for: events[index])
+            }
+            
             events[index] = event
             saveEvents()
             WidgetCenter.shared.reloadAllTimelines() // 刷新所有 Widget
+            
+            // 如果启用了提醒，则调度新通知
+            if event.reminderEnabled {
+                NotificationManager.shared.scheduleNotification(for: event)
+            }
             
             // 如果是重复事件且已经过期，生成下一次事件
             if event.repeatType != .none && event.daysRemaining < 0 {
@@ -60,6 +75,11 @@ class EventStore: ObservableObject {
     
     // 删除事件
     func deleteEvent(_ event: Event) {
+        // 移除事件的通知
+        if event.reminderEnabled {
+            NotificationManager.shared.removeNotifications(for: event)
+        }
+        
         events.removeAll { $0.id == event.id }
         saveEvents()
         WidgetCenter.shared.reloadAllTimelines() // 刷新所有 Widget

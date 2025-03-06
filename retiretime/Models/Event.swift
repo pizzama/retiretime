@@ -62,6 +62,9 @@ struct Event: Identifiable, Codable {
     var notes: String = ""
     var reminderEnabled: Bool = false
     var reminderDate: Date?
+    var reminderOffset: ReminderOffset = .atTime // 提醒时间偏移
+    var notificationSound: NotificationSound? = .default // 通知声音
+    var vibrationEnabled: Bool = true // 是否启用震动
     var category: String = "未分类"
     var colorData: CodableColor? = nil // 编码后的颜色数据
     var icon: String? = nil // 自定义图标

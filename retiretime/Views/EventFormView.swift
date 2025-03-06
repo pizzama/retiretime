@@ -21,6 +21,9 @@ struct EventFormView: View {
     @State private var notes: String = ""
     @State private var reminderEnabled: Bool = false
     @State private var reminderDate: Date = Date()
+    @State private var reminderOffset: ReminderOffset = .atTime
+    @State private var notificationSound: NotificationSound = .default
+    @State private var vibrationEnabled: Bool = true
     @State private var category: String = "未分类"
     @State private var repeatType: RepeatType = .none
     @State private var showingRepeatOptions: Bool = false
@@ -160,7 +163,27 @@ struct EventFormView: View {
                     Toggle("开启提醒", isOn: $reminderEnabled)
                     
                     if reminderEnabled {
-                        DatePicker("提醒时间", selection: $reminderDate, displayedComponents: [.date, .hourAndMinute])
+                        // 提醒时间偏移选择
+                        Picker("提醒时间", selection: $reminderOffset) {
+                            ForEach(ReminderOffset.allCases) { offset in
+                                Text(offset.rawValue).tag(offset)
+                            }
+                        }
+                        
+                        // 自定义提醒时间
+                        if reminderOffset == .atTime {
+                            DatePicker("具体时间", selection: $reminderDate, displayedComponents: [.date, .hourAndMinute])
+                        }
+                        
+                        // 通知声音选择
+                        Picker("提醒声音", selection: $notificationSound) {
+                            ForEach(NotificationSound.allCases) { sound in
+                                Text(sound.rawValue).tag(sound)
+                            }
+                        }
+                        
+                        // 震动开关
+                        Toggle("震动提醒", isOn: $vibrationEnabled)
                     }
                 }
             }
@@ -182,6 +205,9 @@ struct EventFormView: View {
                     type = event.type
                     notes = event.notes
                     reminderEnabled = event.reminderEnabled
+                    reminderOffset = event.reminderOffset
+                    notificationSound = event.notificationSound ?? .default
+                    vibrationEnabled = event.vibrationEnabled
                     if let reminderDate = event.reminderDate {
                         self.reminderDate = reminderDate
                     }
@@ -325,6 +351,16 @@ struct EventFormView: View {
         // 创建新事件或更新现有事件
         let event: Event
         
+        // 计算实际的提醒日期
+        var finalReminderDate: Date? = nil
+        if reminderEnabled {
+            if reminderOffset == .atTime {
+                finalReminderDate = reminderDate
+            } else {
+                finalReminderDate = NotificationManager.shared.calculateReminderDate(eventDate: date, offset: reminderOffset)
+            }
+        }
+        
         if let editingEvent = editingEvent {
             // 更新现有事件
             event = Event(
@@ -334,7 +370,10 @@ struct EventFormView: View {
                 type: type,
                 notes: notes,
                 reminderEnabled: reminderEnabled,
-                reminderDate: reminderEnabled ? reminderDate : nil,
+                reminderDate: finalReminderDate,
+                reminderOffset: reminderOffset,
+                notificationSound: reminderEnabled ? notificationSound : nil,
+                vibrationEnabled: vibrationEnabled,
                 category: category,
                 repeatType: repeatType,
                 repeatSettings: createRepeatSettings(),
@@ -349,12 +388,20 @@ struct EventFormView: View {
                 type: type,
                 notes: notes,
                 reminderEnabled: reminderEnabled,
-                reminderDate: reminderEnabled ? reminderDate : nil,
+                reminderDate: finalReminderDate,
+                reminderOffset: reminderOffset,
+                notificationSound: reminderEnabled ? notificationSound : nil,
+                vibrationEnabled: vibrationEnabled,
                 category: category,
                 repeatType: repeatType,
                 repeatSettings: createRepeatSettings()
             )
             eventStore.addEvent(event)
+        }
+        
+        // 如果启用了提醒，则调度通知
+        if reminderEnabled {
+            NotificationManager.shared.scheduleNotification(for: event)
         }
     }
 }
