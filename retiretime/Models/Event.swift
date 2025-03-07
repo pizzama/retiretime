@@ -235,13 +235,20 @@ extension Event {
         // 其他示例日期
         let futureDate2 = calendar.date(byAdding: .day, value: 100, to: today)!
         let pastDate1 = calendar.date(byAdding: .day, value: -365, to: today)!
+        
+        // 设置入职日为固定日期，而不是相对于当前日期
+        var entryDateComponents = DateComponents()
+        entryDateComponents.year = currentYear - 2  // 两年前入职
+        entryDateComponents.month = 7  // 7月
+        entryDateComponents.day = 15   // 15日
+        let entryDate = calendar.date(from: entryDateComponents)!
         let pastDate2 = calendar.date(byAdding: .day, value: -30, to: today)!
         
         return [
             Event(name: "退休日", date: retirementDate, type: .retirement, notes: "期待已久的退休日", category: "个人", birthDate: birthDate, gender: .male),
             Event(name: "结婚纪念日", date: pastDate1, type: .countdown, notes: "美好的一天", category: "家庭"),
             Event(name: "生日", date: futureDate2, type: .countdown, notes: "又要长一岁了", category: "个人"),
-            Event(name: "入职日", date: pastDate2, type: .countdown, notes: "开始新工作的日子", category: "工作")
+            Event(name: "入职日", date: entryDate, type: .countdown, notes: "开始新工作的日子", category: "工作")
         ]
     }
 }
