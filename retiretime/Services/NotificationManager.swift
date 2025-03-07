@@ -101,6 +101,12 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
             // 这里可以添加打开对应事件详情的逻辑
         }
         
+        // 重置应用图标上的通知徽章
+        DispatchQueue.main.async {
+            UIApplication.shared.applicationIconBadgeNumber = 0
+            print("用户点击通知后已重置应用图标通知徽章")
+        }
+        
         completionHandler()
     }
     

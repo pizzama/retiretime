@@ -76,6 +76,10 @@ struct retiretimeApp: App {
                     NotificationManager.shared.checkAuthorizationStatus()
                     print("应用出现，通知权限状态: \(NotificationManager.shared.isAuthorized ? "已授权" : "未授权")")
                     
+                    // 重置应用图标上的通知徽章
+                    UIApplication.shared.applicationIconBadgeNumber = 0
+                    print("已重置应用图标通知徽章")
+                    
                     // 如果已授权，列出所有待处理的通知
                     if NotificationManager.shared.isAuthorized {
                         NotificationManager.shared.listPendingNotifications()
