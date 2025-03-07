@@ -42,19 +42,7 @@ enum RepeatType: String, CaseIterable, Identifiable, Codable {
     var id: String { self.rawValue }
 }
 
-// 重复设置结构体
-struct RepeatSettings: Codable {
-    // 每周重复的星期几 (1-7, 1代表周日)
-    var weekday: Int?
-    // 每月重复的日期 (1-31)
-    var monthDay: Int?
-    // 每年重复的月份 (1-12)
-    var month: Int?
-    // 每年重复的日期 (1-31)
-    var yearDay: Int?
-    // 重复间隔 (例如每2天、每3周等)
-    var interval: Int = 1
-}
+// 重复设置结构体已移除
 
 // 性别枚举
 enum Gender: String, CaseIterable, Identifiable, Codable {
@@ -109,7 +97,6 @@ struct Event: Identifiable, Codable {
     var colorData: CodableColor? = nil // 编码后的颜色数据
     var icon: String? = nil // 自定义图标
     var repeatType: RepeatType = .none // 重复类型
-    var repeatSettings: RepeatSettings? = nil // 重复设置
     var lastOccurrence: Date? = nil // 上次发生日期，用于计算下次重复日期
     
     // 退休日特有属性

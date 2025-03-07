@@ -187,15 +187,7 @@ struct EventFormView: View {
                         Button(action: {
                             showingRepeatOptions = true
                         }) {
-                            HStack {
-                                Text("重复设置")
-                                Spacer()
-                                Text(getRepeatSettingDescription())
-                                    .foregroundColor(.gray)
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
-                                    .font(.system(size: 13))
-                            }
+                            // 移除了HStack部分
                         }
                         .actionSheet(isPresented: $showingRepeatOptions) {
                             getRepeatOptionsActionSheet()
@@ -268,22 +260,22 @@ struct EventFormView: View {
                         self.gender = gender
                     }
                     
-                    // 加载重复设置
-                    if let settings = event.repeatSettings {
-                        if let weekday = settings.weekday {
-                            weekdaySelection = weekday
-                        }
-                        if let monthDay = settings.monthDay {
-                            monthDaySelection = monthDay
-                        }
-                        if let month = settings.month {
-                            yearMonthSelection = month
-                        }
-                        if let yearDay = settings.yearDay {
-                            yearDaySelection = yearDay
-                        }
-                        repeatInterval = settings.interval
-                    }
+//                    // 加载重复设置
+//                    if let settings = event.repeatSettings {
+//                        if let weekday = settings.weekday {
+//                            weekdaySelection = weekday
+//                        }
+//                        if let monthDay = settings.monthDay {
+//                            monthDaySelection = monthDay
+//                        }
+//                        if let month = settings.month {
+//                            yearMonthSelection = month
+//                        }
+//                        if let yearDay = settings.yearDay {
+//                            yearDaySelection = yearDay
+//                        }
+//                        repeatInterval = settings.interval
+//                    }
                 }
             }
         }
@@ -376,29 +368,7 @@ struct EventFormView: View {
         }
     }
     
-    // 创建重复设置
-    private func createRepeatSettings() -> RepeatSettings? {
-        if repeatType == .none {
-            return nil
-        }
-        
-        var settings = RepeatSettings()
-        settings.interval = repeatInterval
-        
-        switch repeatType {
-        case .weekly:
-            settings.weekday = weekdaySelection
-        case .monthly:
-            settings.monthDay = monthDaySelection
-        case .yearly:
-            settings.month = yearMonthSelection
-            settings.yearDay = yearDaySelection
-        default:
-            break
-        }
-        
-        return settings
-    }
+    // 重复设置已移除
     
     // 计算退休日期
     private func calculateRetirementDate() {
@@ -456,7 +426,6 @@ struct EventFormView: View {
                 vibrationEnabled: vibrationEnabled,
                 category: category,
                 repeatType: repeatType,
-                repeatSettings: createRepeatSettings(),
                 lastOccurrence: editingEvent.lastOccurrence,
                 birthDate: type == .retirement ? birthDate : nil,
                 gender: type == .retirement ? gender : nil
@@ -477,7 +446,6 @@ struct EventFormView: View {
                 vibrationEnabled: vibrationEnabled,
                 category: category,
                 repeatType: repeatType,
-                repeatSettings: createRepeatSettings(),
                 birthDate: type == .retirement ? birthDate : nil,
                 gender: type == .retirement ? gender : nil
             )
