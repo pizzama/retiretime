@@ -259,23 +259,6 @@ struct EventFormView: View {
                     if let gender = event.gender {
                         self.gender = gender
                     }
-                    
-//                    // 加载重复设置
-//                    if let settings = event.repeatSettings {
-//                        if let weekday = settings.weekday {
-//                            weekdaySelection = weekday
-//                        }
-//                        if let monthDay = settings.monthDay {
-//                            monthDaySelection = monthDay
-//                        }
-//                        if let month = settings.month {
-//                            yearMonthSelection = month
-//                        }
-//                        if let yearDay = settings.yearDay {
-//                            yearDaySelection = yearDay
-//                        }
-//                        repeatInterval = settings.interval
-//                    }
                 }
             }
         }
