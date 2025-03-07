@@ -183,15 +183,6 @@ struct EventFormView: View {
                                 Text("每\(interval)\(getIntervalUnit())").tag(interval)
                             }
                         }
-                        
-                        Button(action: {
-                            showingRepeatOptions = true
-                        }) {
-                            // 移除了HStack部分
-                        }
-                        .actionSheet(isPresented: $showingRepeatOptions) {
-                            getRepeatOptionsActionSheet()
-                        }
                     }
                 }
                 
@@ -209,7 +200,15 @@ struct EventFormView: View {
                         
                         // 自定义提醒时间
                         if reminderOffset == .atTime {
-                            DatePicker("具体时间", selection: $reminderDate, displayedComponents: [.date, .hourAndMinute])
+                            DatePicker("具体时间", selection: $reminderDate, displayedComponents: .hourAndMinute)
+                                .onChange(of: date) { _ in
+                                    // 当事件日期变化时，更新提醒日期的日期部分
+                                    updateReminderDateToMatchEventDate()
+                                }
+                                .onAppear {
+                                    // 初始化时确保提醒日期与事件日期一致
+                                    updateReminderDateToMatchEventDate()
+                                }
                         }
                         
                         // 通知声音选择
@@ -387,7 +386,19 @@ struct EventFormView: View {
         var finalReminderDate: Date? = nil
         if reminderEnabled {
             if reminderOffset == .atTime {
-                finalReminderDate = reminderDate
+                // 合并事件日期和提醒时间
+                let calendar = Calendar.current
+                let reminderComponents = calendar.dateComponents([.hour, .minute], from: reminderDate)
+                let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+                
+                var combinedComponents = DateComponents()
+                combinedComponents.year = dateComponents.year
+                combinedComponents.month = dateComponents.month
+                combinedComponents.day = dateComponents.day
+                combinedComponents.hour = reminderComponents.hour
+                combinedComponents.minute = reminderComponents.minute
+                
+                finalReminderDate = calendar.date(from: combinedComponents)
             } else {
                 finalReminderDate = NotificationManager.shared.calculateReminderDate(eventDate: date, offset: reminderOffset)
             }
@@ -433,6 +444,26 @@ struct EventFormView: View {
                 gender: type == .retirement ? gender : nil
             )
             eventStore.addEvent(event)
+        }
+    }
+    
+    // 更新提醒日期以匹配事件日期
+    private func updateReminderDateToMatchEventDate() {
+        if reminderOffset == .atTime {
+            let calendar = Calendar.current
+            let reminderComponents = calendar.dateComponents([.hour, .minute], from: reminderDate)
+            let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+            
+            var combinedComponents = DateComponents()
+            combinedComponents.year = dateComponents.year
+            combinedComponents.month = dateComponents.month
+            combinedComponents.day = dateComponents.day
+            combinedComponents.hour = reminderComponents.hour
+            combinedComponents.minute = reminderComponents.minute
+            
+            if let newReminderDate = calendar.date(from: combinedComponents) {
+                reminderDate = newReminderDate
+            }
         }
     }
 }
