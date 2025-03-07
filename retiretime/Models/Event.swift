@@ -51,12 +51,39 @@ enum Gender: String, CaseIterable, Identifiable, Codable {
     
     var id: String { self.rawValue }
     
-    // 获取退休年龄
-    var retirementAge: Int {
+    // 获取退休年龄 - 2025年最新政策
+    func retirementAge(birthYear: Int) -> Int {
         switch self {
-        case .male: return 60
-        case .female: return 55
+        case .male:
+            // 男性退休年龄渐进式调整
+            if birthYear < 1965 {
+                return 60 // 1965年前出生的男性仍按60岁退休
+            } else if birthYear < 1975 {
+                return 61 // 1965-1974年出生的男性按61岁退休
+            } else if birthYear < 1985 {
+                return 62 // 1975-1984年出生的男性按62岁退休
+            } else {
+                return 63 // 1985年及以后出生的男性按63岁退休
+            }
+            
+        case .female:
+            // 女性退休年龄渐进式调整
+            if birthYear < 1970 {
+                return 55 // 1970年前出生的女性仍按55岁退休
+            } else if birthYear < 1980 {
+                return 56 // 1970-1979年出生的女性按56岁退休
+            } else if birthYear < 1990 {
+                return 57 // 1980-1989年出生的女性按57岁退休
+            } else {
+                return 58 // 1990年及以后出生的女性按58岁退休
+            }
         }
+    }
+    
+    // 兼容旧代码的计算属性
+    var retirementAge: Int {
+        // 默认使用1980年作为默认出生年份
+        return retirementAge(birthYear: 1980)
     }
 }
 

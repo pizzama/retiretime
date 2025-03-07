@@ -359,8 +359,8 @@ struct EventFormView: View {
         let birthMonth = calendar.component(.month, from: birthDate)
         let birthDay = calendar.component(.day, from: birthDate)
         
-        // 根据性别获取退休年龄
-        let retirementAge = gender.retirementAge
+        // 根据性别和出生年份获取退休年龄
+        let retirementAge = gender.retirementAge(birthYear: birthYear)
         
         // 计算退休年份
         let retirementYear = birthYear + retirementAge
