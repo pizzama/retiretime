@@ -12,14 +12,22 @@ import WidgetKit
 class EventStore: ObservableObject {
     @Published var events: [Event] = []
     private let saveKey = "savedEvents"
+    private let userDefaults: UserDefaults
     
     init() {
+        // 使用App Group的UserDefaults实例，确保Widget和主应用可以共享数据
+        if let groupUserDefaults = UserDefaults(suiteName: "group.com.fenghua.retiretime") {
+            self.userDefaults = groupUserDefaults
+        } else {
+            self.userDefaults = UserDefaults.standard
+            print("警告：无法创建App Group的UserDefaults，将使用标准UserDefaults")
+        }
         loadEvents()
     }
     
     // 加载保存的事件
     private func loadEvents() {
-        if let data = UserDefaults.standard.data(forKey: saveKey) {
+        if let data = userDefaults.data(forKey: saveKey) {
             if let decoded = try? JSONDecoder().decode([Event].self, from: data) {
                 self.events = decoded
                 return
@@ -33,7 +41,8 @@ class EventStore: ObservableObject {
     // 保存事件到UserDefaults
     private func saveEvents() {
         if let encoded = try? JSONEncoder().encode(events) {
-            UserDefaults.standard.set(encoded, forKey: saveKey)
+            userDefaults.set(encoded, forKey: saveKey)
+            userDefaults.synchronize() // 确保数据立即写入，对Widget共享很重要
         }
     }
     
