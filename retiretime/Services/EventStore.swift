@@ -43,6 +43,10 @@ class EventStore: ObservableObject {
         if let encoded = try? JSONEncoder().encode(events) {
             userDefaults.set(encoded, forKey: saveKey)
             userDefaults.synchronize() // 确保数据立即写入，对Widget共享很重要
+            
+            // 刷新所有Widget，确保数据更新
+            WidgetCenter.shared.reloadAllTimelines()
+            print("已保存事件数据并刷新Widget")
         }
     }
     

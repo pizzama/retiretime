@@ -85,6 +85,24 @@ struct retiretimeApp: App {
                         NotificationManager.shared.listPendingNotifications()
                     }
                 }
+                .onOpenURL { url in
+                    // 处理从Widget点击打开应用的URL
+                    print("收到URL: \(url)")
+                    
+                    // 解析URL，格式为：retiretime://event/{eventId}
+                    if url.scheme == "retiretime" && url.host == "event" {
+                        let pathComponents = url.pathComponents
+                        if pathComponents.count > 1 {
+                            let eventIdString = pathComponents[1]
+                            if let eventId = UUID(uuidString: eventIdString),
+                               let event = eventStore.events.first(where: { $0.id == eventId }) {
+                                // 这里可以添加导航到特定事件详情页的逻辑
+                                print("准备打开事件详情: \(event.name)")
+                                // 在实际应用中，你需要通过环境变量或其他方式通知ContentView打开特定事件
+                            }
+                        }
+                    }
+                }
         }
     }
 }

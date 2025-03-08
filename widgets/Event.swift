@@ -1,6 +1,6 @@
 //
 //  Event.swift
-//  retiretime
+//  widgets
 //
 //  Created by Trae AI on 2025/3/5.
 //
@@ -41,8 +41,6 @@ public enum RepeatType: String, CaseIterable, Identifiable, Codable {
     
     public var id: String { self.rawValue }
 }
-
-// 重复设置结构体已移除
 
 // 性别枚举
 public enum Gender: String, CaseIterable, Identifiable, Codable {
@@ -192,6 +190,21 @@ public struct Event: Identifiable, Codable {
             }
         }
     }
+    
+    // 初始化方法
+    public init(id: UUID = UUID(), name: String, date: Date, type: EventType) {
+        self.id = id
+        self.name = name
+        self.date = date
+        self.type = type
+    }
+    
+    // 示例数据
+    public static var samples: [Event] = [
+        Event(name: "退休日", date: Calendar.current.date(byAdding: .year, value: 20, to: Date())!, type: .retirement),
+        Event(name: "生日", date: Calendar.current.date(byAdding: .month, value: 2, to: Date())!, type: .countdown),
+        Event(name: "结婚纪念日", date: Calendar.current.date(byAdding: .day, value: -100, to: Date())!, type: .countdown)
+    ]
 }
 
 // 用于编码Color的辅助结构体
@@ -221,48 +234,5 @@ public struct CodableColor: Codable {
     
     public var color: Color {
         Color(.sRGB, red: red, green: green, blue: blue, opacity: opacity)
-    }
-}
-
-// 示例数据
-public extension Event {
-    static var samples: [Event] {
-        let calendar = Calendar.current
-        let today = Date()
-        
-        // 创建出生日期 - 以当前年份减去30年作为示例
-        let currentYear = calendar.component(.year, from: today)
-        var birthDateComponents = DateComponents()
-        birthDateComponents.year = currentYear - 30 // 假设30岁
-        birthDateComponents.month = 5
-        birthDateComponents.day = 7
-        let birthDate = calendar.date(from: birthDateComponents)!
-        
-        // 计算退休日期 - 男性60岁退休
-        let retirementAge = Gender.male.retirementAge
-        var retirementDateComponents = DateComponents()
-        retirementDateComponents.year = birthDateComponents.year! + retirementAge // 根据出生年份和退休年龄计算
-        retirementDateComponents.month = birthDateComponents.month
-        retirementDateComponents.day = birthDateComponents.day
-        let retirementDate = calendar.date(from: retirementDateComponents)!
-        
-        // 其他示例日期
-        let futureDate2 = calendar.date(byAdding: .day, value: 100, to: today)!
-        let pastDate1 = calendar.date(byAdding: .day, value: -365, to: today)!
-        
-        // 设置入职日为固定日期，而不是相对于当前日期
-        var entryDateComponents = DateComponents()
-        entryDateComponents.year = currentYear - 2  // 两年前入职
-        entryDateComponents.month = 7  // 7月
-        entryDateComponents.day = 15   // 15日
-        let entryDate = calendar.date(from: entryDateComponents)!
-        let pastDate2 = calendar.date(byAdding: .day, value: -30, to: today)!
-        
-        return [
-            Event(name: "退休日", date: retirementDate, type: .retirement, notes: "期待已久的退休日", category: "个人", birthDate: birthDate, gender: .male),
-            Event(name: "结婚纪念日", date: pastDate1, type: .countdown, notes: "美好的一天", category: "家庭"),
-            Event(name: "生日", date: futureDate2, type: .countdown, notes: "又要长一岁了", category: "个人"),
-            Event(name: "入职日", date: entryDate, type: .countdown, notes: "开始新工作的日子", category: "工作")
-        ]
     }
 }
