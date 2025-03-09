@@ -25,6 +25,10 @@ struct retiretimeApp: App {
         print("初始化应用，检查通知权限状态")
         NotificationManager.shared.checkAuthorizationStatus()
         
+        // 刷新所有Widget，确保应用启动时Widget数据同步
+        WidgetCenter.shared.reloadAllTimelines()
+        print("应用启动时刷新所有Widget")
+        
         // 延迟检查权限状态，确保有足够时间处理授权请求
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             print("延迟检查通知权限状态: \(NotificationManager.shared.isAuthorized ? "已授权" : "未授权")")
@@ -71,6 +75,7 @@ struct retiretimeApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(eventStore)
+                .withWidgetPrompt() // 添加Widget提示修饰器
                 .onAppear {
                     // 应用每次出现时检查通知权限
                     NotificationManager.shared.checkAuthorizationStatus()
@@ -84,6 +89,9 @@ struct retiretimeApp: App {
                     if NotificationManager.shared.isAuthorized {
                         NotificationManager.shared.listPendingNotifications()
                     }
+                    
+                    // 检查是否需要提示用户安装Widget
+                    WidgetPromptManager.shared.checkAndShowWidgetPrompt()
                 }
                 .onOpenURL { url in
                     // 处理从Widget点击打开应用的URL
