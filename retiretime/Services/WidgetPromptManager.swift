@@ -69,7 +69,11 @@ class WidgetPromptManager: ObservableObject {
     
     // 用户选择稍后提示
     func remindLater() {
+        // 设置24小时后再次提示
+        UserDefaults.standard.set(Date(), forKey: hasPromptedWidgetKey)
         showWidgetPrompt = false
+        
+        print("用户选择稍后提示，将在24小时后再次显示提示")
     }
 }
 
