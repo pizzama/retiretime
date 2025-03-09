@@ -11,16 +11,18 @@ import WidgetKit
 
 class EventStore: ObservableObject {
     @Published var events: [Event] = []
-    private let saveKey = "savedEvents"
+    private let saveKey = "savedEvents" // 确保与Widget中使用的键名完全一致
     private let userDefaults: UserDefaults
     
     init() {
         // 使用App Group的UserDefaults实例，确保Widget和主应用可以共享数据
         if let groupUserDefaults = UserDefaults(suiteName: "group.com.fenghua.retiretime") {
             self.userDefaults = groupUserDefaults
+            print("✅ 成功创建App Group的UserDefaults实例")
         } else {
             self.userDefaults = UserDefaults.standard
-            print("警告：无法创建App Group的UserDefaults，将使用标准UserDefaults")
+            print("⚠️ 警告：无法创建App Group的UserDefaults，将使用标准UserDefaults")
+            print("⚠️ 这将导致Widget无法访问应用数据，请检查Entitlements配置")
         }
         loadEvents()
     }
@@ -40,13 +42,25 @@ class EventStore: ObservableObject {
     
     // 保存事件到UserDefaults
     private func saveEvents() {
-        if let encoded = try? JSONEncoder().encode(events) {
+        do {
+            let encoded = try JSONEncoder().encode(events)
             userDefaults.set(encoded, forKey: saveKey)
-            userDefaults.synchronize() // 确保数据立即写入，对Widget共享很重要
+            
+            // 强制同步数据，确保立即写入到磁盘，这对Widget共享数据至关重要
+            let success = userDefaults.synchronize()
+            if !success {
+                print("⚠️ 警告：UserDefaults同步可能未成功完成")
+            }
+            
+            // 记录保存的数据大小和事件数量，便于调试
+            print("✅ 已保存事件数据：\(events.count)个事件，数据大小约\(encoded.count)字节")
+            print("✅ 保存位置：App Group 'group.com.fenghua.retiretime'")
             
             // 刷新所有Widget，确保数据更新
             WidgetCenter.shared.reloadAllTimelines()
-            print("已保存事件数据并刷新Widget")
+            print("✅ 已请求刷新所有Widget")
+        } catch {
+            print("❌ 错误：保存事件数据失败 - \(error.localizedDescription)")
         }
     }
     

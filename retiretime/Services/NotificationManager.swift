@@ -218,7 +218,7 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
                 let testComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: testDate)
                 
                 // 根据是否为测试模式选择不同的触发器
-                let isTestMode = true // 设置为true可以快速测试通知
+                let isTestMode = false // 设置为false使用实际提醒日期
                 let trigger: UNNotificationTrigger
                 
                 if isTestMode {

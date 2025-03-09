@@ -62,7 +62,7 @@ public enum NotificationSound: String, CaseIterable, Identifiable, Codable {
             return UNNotificationSound.defaultRingtone
         case .electronic:
             // 使用系统声音而非自定义声音文件
-            return UNNotificationSound.default
+            return UNNotificationSound.defaultCriticalSound(withAudioVolume: 0.8)
         case .none:
             return nil
         }
