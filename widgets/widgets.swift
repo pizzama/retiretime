@@ -108,27 +108,10 @@ struct RetireTimeWidgetEntryView : View {
     @Environment(\.widgetFamily) var widgetFamily
     var entry: Provider.Entry
     
-    // 根据Widget尺寸决定显示的事件数量
-    var eventsToShow: [Event] {
-        let events = entry.events
-        switch widgetFamily {
-        case .systemSmall:
-            return Array(events.prefix(1))
-        case .systemMedium:
-            return Array(events.prefix(2))
-        case .systemLarge:
-            return Array(events.prefix(4))
-        #if os(iOS) // iOS 16+ 支持 extraLarge 尺寸
-        case .systemExtraLarge:
-            return Array(events.prefix(6))
-        #endif
-        #if os(iOS) // iOS 16+ 支持锁屏小组件
-        case .accessoryRectangular, .accessoryCircular, .accessoryInline:
-            return Array(events.prefix(1))
-        #endif
-        @unknown default:
-            return Array(events.prefix(1))
-        }
+    // 获取最重要的一个事件进行显示
+    var eventToShow: Event? {
+        // 返回第一个事件（已在Provider中按剩余天数排序）
+        return entry.events.first
     }
 
     var body: some View {
@@ -141,7 +124,7 @@ struct RetireTimeWidgetEntryView : View {
                     Circle()
                         .fill(Color.blue.opacity(0.2))
                     
-                    if let event = eventsToShow.first {
+                    if let event = eventToShow {
                         VStack(spacing: 2) {
                             // 只显示天数
                             Text("\(abs(event.daysRemaining))")
@@ -162,7 +145,7 @@ struct RetireTimeWidgetEntryView : View {
                 
             // 锁屏行内小组件
             case .accessoryInline:
-                if let event = eventsToShow.first {
+                if let event = eventToShow {
                     Label {
                         Text(event.name + ": " + event.formattedDays)
                     } icon: {
@@ -185,7 +168,7 @@ struct RetireTimeWidgetEntryView : View {
                             .foregroundColor(.primary)
                     }
                     
-                    if let event = eventsToShow.first {
+                    if let event = eventToShow {
                         HStack {
                             VStack(alignment: .leading) {
                                 Text(event.name)
@@ -208,39 +191,70 @@ struct RetireTimeWidgetEntryView : View {
                 }
                 .padding(.horizontal, 4)
                 
-            // 常规主屏幕小组件
+            // 常规主屏幕小组件 - 修改为只显示单个事件的样式
             default:
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "calendar.badge.clock")
-                            .foregroundColor(.blue)
-                        Text("退休时间")
-                            .font(.headline)
-                            .foregroundColor(.primary) // 使用.primary确保在任何主题下都有良好的可见性
-                        Spacer()
-                    }
-                    .padding(.bottom, 4)
+                ZStack {
+                    // 背景渐变
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color.blue.opacity(0.1), Color.blue.opacity(0.05)]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                     
-                    if eventsToShow.isEmpty {
-                        Text("没有即将到来的事件")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary) // 使用.secondary确保在任何主题下都有良好的可见性
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical)
+                    if let event = eventToShow {
+                        VStack(spacing: 10) {
+                            // 顶部日期信息
+                            Text(event.formattedDate)
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                                .padding(.top, 10)
+                            
+                            // 事件名称
+                            Text(event.name)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(1)
+                                .padding(.horizontal, 8)
+                            
+                            // 剩余天数 - 大号显示
+                            VStack(spacing: 0) {
+                                // 星期几和剩余天数文本
+                                HStack {
+                                    Text(event.isCountdown ? "星期六 还有" : "已过")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                // 天数
+                                Text("\(abs(event.daysRemaining))")
+                                    .font(.system(size: 60, weight: .bold))
+                                    .foregroundColor(event.isCountdown ? .blue : .orange)
+                                
+                                // 单位
+                                Text("DAYS")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 5)
+                            
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.horizontal, 10)
                     } else {
-                        ForEach(eventsToShow) { event in
-                            EventRow(event: event)
+                        VStack(spacing: 10) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 40))
+                                .foregroundColor(.blue)
+                            
+                            Text("没有即将到来的事件")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
                         }
                     }
-                    
-                    Spacer()
-                    
-                    Text("更新于: \(entry.date, formatter: dateFormatter)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary) // 使用.secondary确保在任何主题下都有良好的可见性
-                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .padding()
             }
         }
     }
@@ -251,36 +265,6 @@ struct RetireTimeWidgetEntryView : View {
         formatter.timeZone = TimeZone.current // 确保使用当前时区
         formatter.locale = Locale(identifier: "zh_CN") // 与主应用保持一致的区域设置
         return formatter
-    }
-}
-
-// 单个事件行视图
-struct EventRow: View {
-    let event: Event
-    
-    var body: some View {
-        Link(destination: URL(string: "retiretime://event/\(event.id.uuidString)")!) {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(event.name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary) // 使用.primary确保在任何主题下都有良好的可见性
-                        .lineLimit(1)
-                    
-                    Text(event.formattedDays)
-                        .font(.caption)
-                        .foregroundColor(event.isCountdown ? .blue : .orange)
-                }
-                
-                Spacer()
-                
-                Text(event.formattedDate)
-                    .font(.caption)
-                    .foregroundColor(.secondary) // 使用.secondary确保在任何主题下都有良好的可见性
-            }
-            .padding(.vertical, 4)
-        }
     }
 }
 
@@ -299,7 +283,7 @@ struct RetireTimeWidget: Widget {
             }
         }
         .configurationDisplayName("退休时间")
-        .description("显示最近的几个重要日子/事件信息")
+        .description("显示最近的重要日子/事件信息")
         // 支持所有可能的Widget尺寸，包括锁屏小组件
         .supportedFamilies([
             .systemSmall, 
