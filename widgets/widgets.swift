@@ -83,9 +83,9 @@ struct Provider: IntentTimelineProvider {
         let currentDate = Date()
         let events = loadEvents()
         
-        // 生成未来24小时的时间线，每小时更新一次
-        for hourOffset in 0 ..< 24 {
-            let entryDate = Calendar.current.date(byAdding: .hour, value: hourOffset, to: currentDate)!
+        // 生成未来12小时的时间线，每30分钟更新一次，确保更频繁地刷新
+        for minuteOffset in stride(from: 0, to: 12 * 60, by: 30) {
+            let entryDate = Calendar.current.date(byAdding: .minute, value: minuteOffset, to: currentDate)!
             let entry = EventEntry(date: entryDate, events: events, configuration: configuration)
             entries.append(entry)
         }
@@ -95,8 +95,8 @@ struct Provider: IntentTimelineProvider {
         // .after(date) - 在指定日期后刷新
         // .never - 永不自动刷新，仅通过reloadAllTimelines()刷新
         
-        // 设置为每小时刷新一次，并在主应用数据变化时通过reloadAllTimelines()强制刷新
-        let refreshDate = Calendar.current.date(byAdding: .hour, value: 1, to: currentDate)!
+        // 设置为每30分钟刷新一次，并在主应用数据变化时通过reloadAllTimelines()强制刷新
+        let refreshDate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)!
         let timeline = Timeline(entries: entries, policy: .after(refreshDate))
         
         print("Widget时间线已创建，条目数量: \(entries.count)，下次自动刷新时间: \(refreshDate)")
@@ -248,6 +248,8 @@ struct RetireTimeWidgetEntryView : View {
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
+        formatter.timeZone = TimeZone.current // 确保使用当前时区
+        formatter.locale = Locale(identifier: "zh_CN") // 与主应用保持一致的区域设置
         return formatter
     }
 }

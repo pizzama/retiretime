@@ -133,13 +133,14 @@ public struct Event: Identifiable, Codable {
     // 计算剩余天数或已过天数
     public var daysRemaining: Int {
         let calendar = Calendar.current
-        let startOfToday = calendar.startOfDay(for: Date())
+        // 获取当前日期的零点时间，确保无论何时计算都基于当天的开始时间
+        let now = Date()
+        let startOfToday = calendar.startOfDay(for: now)
         let startOfTargetDate = calendar.startOfDay(for: date)
         
-        // 使用timeIntervalSince方法计算日期差异，然后转换为天数
-        let timeInterval = startOfTargetDate.timeIntervalSince(startOfToday)
-        let days = Int(timeInterval / (60 * 60 * 24))
-        return days
+        // 使用dateComponents计算天数差异，这比timeInterval更准确
+        let components = calendar.dateComponents([.day], from: startOfToday, to: startOfTargetDate)
+        return components.day ?? 0
     }
     
     // 判断是倒计时还是正计时
