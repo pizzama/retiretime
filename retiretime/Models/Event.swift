@@ -170,9 +170,21 @@ public struct Event: Identifiable, Codable {
         return formatter.string(from: date)
     }
     
-    // 获取显示的图标
+    // 显示图标
     public var displayIcon: String {
-        return icon ?? type.icon
+        // 如果有自定义图标，则使用自定义图标
+        if let customIcon = icon, !customIcon.isEmpty {
+            return customIcon
+        }
+        // 否则使用事件类型的默认图标
+        return type.icon
+    }
+    
+    // 图片名称
+    public var imageName: String? {
+        // 这里可以根据实际需求返回图片名称
+        // 目前返回nil，表示没有设置图片
+        return nil
     }
     
     // 获取显示的颜色

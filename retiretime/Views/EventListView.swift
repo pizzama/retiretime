@@ -19,23 +19,52 @@ struct EventListView: View {
                 if let currentEvent = eventStore.events.first {
                     VStack(alignment: .center) {
                         HStack {
-                            Image(systemName: currentEvent.displayIcon)
-                                .resizable()
-                                .frame(width: 50, height: 50)
-                                .padding(.trailing)
+                            // 左侧照片
+                            ZStack {
+                                if let imageName = currentEvent.imageName, !imageName.isEmpty {
+                                    Image(imageName)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 60, height: 60)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                } else {
+                                    // 默认图标
+                                    Image(systemName: currentEvent.displayIcon)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 40, height: 40)
+                                        .foregroundColor(currentEvent.type.color)
+                                        .padding(10)
+                                        .background(currentEvent.type.color.opacity(0.1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                            }
+                            .frame(width: 60, height: 60)
+                            .padding(.trailing, 10)
+                            
+                            // 中间事件信息
                             VStack(alignment: .leading) {
                                 Text(currentEvent.name)
-                                    .font(.title)
-                                Text(currentEvent.formattedDays)
-                                    .font(.largeTitle)
-                                    .bold()
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                Text(currentEvent.daysRemaining == 0 ? "今天" : 
+                                     (currentEvent.isCountdown ? "剩余 \(abs(currentEvent.daysRemaining)) 天" : "已过 \(abs(currentEvent.daysRemaining)) 天"))
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(currentEvent.isCountdown ? .green : .orange)
                                 Text("目标日: \(currentEvent.date, formatter: DateFormatter.customShortDate)")
                                     .font(.subheadline)
                                     .foregroundColor(.gray)
                             }
+                            
+                            Spacer()
                         }
                         .padding()
+                        .background(Color.gray.opacity(0.05))
+                        .cornerRadius(15)
+                        .padding(.horizontal)
                     }
+                    .padding(.top)
                 }
                 
                 // 分类选择器
