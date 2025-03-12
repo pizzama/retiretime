@@ -22,11 +22,24 @@ struct EventListView: View {
                             // 左侧照片
                             ZStack {
                                 if let imageName = currentEvent.imageName, !imageName.isEmpty {
-                                    Image(imageName)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 60, height: 60)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    // 从文档目录加载图片
+                                    if let image = loadImageFromDocumentDirectory(named: imageName) {
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 60, height: 60)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    } else {
+                                        // 如果无法加载图片，显示默认图标
+                                        Image(systemName: currentEvent.displayIcon)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 40, height: 40)
+                                            .foregroundColor(currentEvent.type.color)
+                                            .padding(10)
+                                            .background(currentEvent.type.color.opacity(0.1))
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    }
                                 } else {
                                     // 默认图标
                                     Image(systemName: currentEvent.displayIcon)
@@ -117,6 +130,23 @@ struct EventListView: View {
             }
         }
     }
+    
+    // 从文档目录加载图片
+    private func loadImageFromDocumentDirectory(named: String) -> UIImage? {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        
+        let fileURL = documentsDirectory.appendingPathComponent(named)
+        
+        do {
+            let imageData = try Data(contentsOf: fileURL)
+            return UIImage(data: imageData)
+        } catch {
+            print("加载图片失败: \(error)")
+            return nil
+        }
+    }
 }
 
 // 分类按钮组件
@@ -147,11 +177,24 @@ struct EventCard: View {
             // 左侧照片/图标
             ZStack {
                 if let imageName = event.imageName, !imageName.isEmpty {
-                    Image(imageName)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 50, height: 50)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    // 从文档目录加载图片
+                    if let image = loadImageFromDocumentDirectory(named: imageName) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 50, height: 50)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    } else {
+                        // 如果无法加载图片，显示默认图标
+                        Image(systemName: event.displayIcon)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 30, height: 30)
+                            .foregroundColor(event.type.color)
+                            .padding(8)
+                            .background(event.type.color.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
                 } else {
                     // 默认图标
                     Image(systemName: event.displayIcon)
@@ -190,6 +233,23 @@ struct EventCard: View {
         .padding(10)
         .background(Color.gray.opacity(0.05))
         .cornerRadius(12)
+    }
+    
+    // 从文档目录加载图片
+    private func loadImageFromDocumentDirectory(named: String) -> UIImage? {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        
+        let fileURL = documentsDirectory.appendingPathComponent(named)
+        
+        do {
+            let imageData = try Data(contentsOf: fileURL)
+            return UIImage(data: imageData)
+        } catch {
+            print("加载图片失败: \(error)")
+            return nil
+        }
     }
 }
 

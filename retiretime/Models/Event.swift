@@ -125,6 +125,7 @@ public struct Event: Identifiable, Codable {
     public var icon: String? = nil // 自定义图标
     public var repeatType: RepeatType = .none // 重复类型
     public var lastOccurrence: Date? = nil // 上次发生日期，用于计算下次重复日期
+    public var imageName: String? = nil // 图片名称
     
     // 退休日特有属性
     public var birthDate: Date? = nil // 出生日期
@@ -178,13 +179,6 @@ public struct Event: Identifiable, Codable {
         }
         // 否则使用事件类型的默认图标
         return type.icon
-    }
-    
-    // 图片名称
-    public var imageName: String? {
-        // 这里可以根据实际需求返回图片名称
-        // 目前返回nil，表示没有设置图片
-        return nil
     }
     
     // 获取显示的颜色

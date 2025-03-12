@@ -6,12 +6,16 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct EventDetailView: View {
     // 使用ID而不是直接存储event对象
     let eventId: UUID
     @ObservedObject var eventStore: EventStore
     @State private var showingEditSheet = false
+    @State private var showingPhotosPicker = false
+    @State private var selectedImage: UIImage?
+    @State private var selectedImageName: String?
     @Environment(\.presentationMode) var presentationMode
     
     // 计算属性，每次访问时都会从eventStore获取最新的event
@@ -22,14 +26,60 @@ struct EventDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .center, spacing: 24) {
-                // 顶部图标
-                Image(systemName: event.type.icon)
-                    .font(.system(size: 60))
-                    .foregroundColor(event.type.color)
-                    .frame(width: 100, height: 100)
-                    .background(event.type.color.opacity(0.1))
-                    .cornerRadius(20)
-                    .padding(.top, 20)
+                // 照片/图标显示
+                ZStack {
+                    if let imageName = event.imageName, !imageName.isEmpty {
+                        // 从文档目录加载图片
+                        if let image = loadImageFromDocumentDirectory(named: imageName) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 120, height: 120)
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                        } else {
+                            // 如果无法加载图片，显示默认图标
+                            Image(systemName: event.type.icon)
+                                .font(.system(size: 60))
+                                .foregroundColor(event.type.color)
+                                .frame(width: 120, height: 120)
+                                .background(event.type.color.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                        }
+                    } else {
+                        // 默认图标
+                        Image(systemName: event.type.icon)
+                            .font(.system(size: 60))
+                            .foregroundColor(event.type.color)
+                            .frame(width: 120, height: 120)
+                            .background(event.type.color.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                    }
+                    
+                    // 照片选择按钮
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                showingPhotosPicker = true
+                            }) {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                                    .padding(8)
+                                    .background(Color.blue)
+                                    .clipShape(Circle())
+                            }
+                            .padding(8)
+                        }
+                    }
+                    .frame(width: 120, height: 120)
+                }
+                .padding(.top, 20)
                 
                 // 事件名称
                 Text(event.name)
@@ -110,6 +160,16 @@ struct EventDetailView: View {
         .sheet(isPresented: $showingEditSheet) {
             EventFormView(eventStore: eventStore, editingEvent: event)
         }
+        .sheet(isPresented: $showingPhotosPicker) {
+            PhotoPicker(selectedImage: $selectedImage, selectedImageName: $selectedImageName) { imageName in
+                if let imageName = imageName {
+                    // 更新事件的照片
+                    var updatedEvent = event
+                    updatedEvent.imageName = imageName
+                    eventStore.updateEvent(updatedEvent)
+                }
+            }
+        }
     }
     
     private func formatReminderDate(_ date: Date) -> String {
@@ -118,6 +178,23 @@ struct EventDetailView: View {
         formatter.timeStyle = .short
         formatter.locale = Locale(identifier: "zh_CN")
         return formatter.string(from: date)
+    }
+    
+    // 从文档目录加载图片
+    private func loadImageFromDocumentDirectory(named: String) -> UIImage? {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        
+        let fileURL = documentsDirectory.appendingPathComponent(named)
+        
+        do {
+            let imageData = try Data(contentsOf: fileURL)
+            return UIImage(data: imageData)
+        } catch {
+            print("加载图片失败: \(error)")
+            return nil
+        }
     }
 }
 
@@ -142,6 +219,83 @@ struct DetailRow: View {
                 .font(.system(size: 16))
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.trailing)
+        }
+    }
+}
+
+// 照片选择器
+struct PhotoPicker: UIViewControllerRepresentable {
+    @Binding var selectedImage: UIImage?
+    @Binding var selectedImageName: String?
+    var onSelect: (String?) -> Void
+    
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        config.selectionLimit = 1
+        
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let parent: PhotoPicker
+        
+        init(_ parent: PhotoPicker) {
+            self.parent = parent
+        }
+        
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            
+            guard let result = results.first else {
+                parent.onSelect(nil)
+                return
+            }
+            
+            result.itemProvider.loadObject(ofClass: UIImage.self) { (object, error) in
+                if let image = object as? UIImage {
+                    DispatchQueue.main.async {
+                        self.parent.selectedImage = image
+                        
+                        // 保存图片到应用文档目录
+                        if let imageName = self.saveImage(image) {
+                            self.parent.selectedImageName = imageName
+                            self.parent.onSelect(imageName)
+                        } else {
+                            self.parent.onSelect(nil)
+                        }
+                    }
+                } else {
+                    self.parent.onSelect(nil)
+                }
+            }
+        }
+        
+        private func saveImage(_ image: UIImage) -> String? {
+            let imageName = "event_image_\(UUID().uuidString).jpg"
+            
+            guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+                  let imageData = image.jpegData(compressionQuality: 0.8) else {
+                return nil
+            }
+            
+            let fileURL = documentsDirectory.appendingPathComponent(imageName)
+            
+            do {
+                try imageData.write(to: fileURL)
+                return imageName
+            } catch {
+                print("保存图片失败: \(error)")
+                return nil
+            }
         }
     }
 }
