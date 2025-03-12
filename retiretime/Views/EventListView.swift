@@ -52,7 +52,7 @@ struct EventListView: View {
                                     .font(.title2)
                                     .fontWeight(.bold)
                                     .foregroundColor(currentEvent.isCountdown ? .green : .orange)
-                                Text("目标日: \(currentEvent.date, formatter: DateFormatter.customShortDate)")
+                                Text("\(currentEvent.date, formatter: DateFormatter.customShortDate)")
                                     .font(.subheadline)
                                     .foregroundColor(.gray)
                             }
@@ -81,20 +81,27 @@ struct EventListView: View {
                 .padding(.vertical, 8)
                 
                 // 事件列表
-                List {
-                    ForEach(eventStore.filteredEvents(by: selectedCategory)) { event in
-                        NavigationLink(destination: EventDetailView(eventId: event.id, eventStore: eventStore)) {
-                            EventRow(event: event)
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        // 按分类分组显示事件
+                        ForEach(eventStore.categoriesWithEvents(filter: selectedCategory), id: \.self) { category in
+                            // 事件网格
+                            LazyVGrid(columns: [
+                                GridItem(.flexible()),
+                                GridItem(.flexible())
+                            ], spacing: 12) {
+                                ForEach(eventStore.eventsInCategory(category, filter: selectedCategory)) { event in
+                                    NavigationLink(destination: EventDetailView(eventId: event.id, eventStore: eventStore)) {
+                                        EventCard(event: event)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                            .padding(.horizontal)
                         }
                     }
-                    .onDelete { indexSet in
-                        let eventsToDelete = indexSet.map { eventStore.filteredEvents(by: selectedCategory)[$0] }
-                        for event in eventsToDelete {
-                            eventStore.deleteEvent(event)
-                        }
-                    }
+                    .padding(.bottom, 16)
                 }
-                .listStyle(PlainListStyle())
             }
             .navigationTitle("退休倒计时")
             .navigationBarItems(
@@ -131,45 +138,58 @@ struct CategoryButton: View {
     }
 }
 
-// 事件行组件
-struct EventRow: View {
+// 事件卡片组件
+struct EventCard: View {
     let event: Event
     
     var body: some View {
-        HStack(spacing: 16) {
-            // 图标
-            Image(systemName: event.type.icon)
-                .font(.system(size: 24))
-                .foregroundColor(event.type.color)
-                .frame(width: 40, height: 40)
-                .background(event.type.color.opacity(0.1))
-                .cornerRadius(8)
-            
-            // 事件信息
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.name)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.primary)
-                
-                Text(event.formattedDate)
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
+        HStack {
+            // 左侧照片/图标
+            ZStack {
+                if let imageName = event.imageName, !imageName.isEmpty {
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 50, height: 50)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else {
+                    // 默认图标
+                    Image(systemName: event.displayIcon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 30, height: 30)
+                        .foregroundColor(event.type.color)
+                        .padding(8)
+                        .background(event.type.color.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
             }
+            .frame(width: 50, height: 50)
+            
+            // 右侧事件信息
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                
+                Text(event.daysRemaining == 0 ? "今天" : 
+                     (event.isCountdown ? "剩余 \(abs(event.daysRemaining)) 天" : "已过 \(abs(event.daysRemaining)) 天"))
+                    .font(.callout)
+                    .fontWeight(.bold)
+                    .foregroundColor(event.isCountdown ? .green : .orange)
+                
+                Text("\(event.date, formatter: DateFormatter.customShortDate)")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            .padding(.leading, 4)
             
             Spacer()
-            
-            // 剩余/已过天数
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(event.daysRemaining == 0 ? "今天" : (event.isCountdown ? "剩余" : "已过"))
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                
-                Text(event.daysRemaining == 0 ? "0天" : "\(abs(event.daysRemaining))天")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(event.isCountdown ? .green : .orange )
-            }
         }
-        .padding(.vertical, 8)
+        .padding(10)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(12)
     }
 }
 

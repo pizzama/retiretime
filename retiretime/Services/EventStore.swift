@@ -114,17 +114,48 @@ class EventStore: ObservableObject {
     
     // 获取所有分类
     var categories: [String] {
-        var categories = Set(events.map { $0.category })
-        categories.insert("全部")
-        return Array(categories).sorted()
+        let allCategories = events.map { $0.category }
+        let uniqueCategories = Array(Set(allCategories)).sorted()
+        return ["全部"] + uniqueCategories
     }
     
-    // 按分类筛选事件
+    // 根据分类筛选事件
     func filteredEvents(by category: String) -> [Event] {
         if category == "全部" {
-            return events
+            return events.sorted { $0.daysRemaining < $1.daysRemaining }
+        } else {
+            return events.filter { $0.category == category }
+                .sorted { $0.daysRemaining < $1.daysRemaining }
         }
-        return events.filter { $0.category == category }
+    }
+    
+    // 获取包含事件的分类列表（按照筛选条件）
+    func categoriesWithEvents(filter category: String) -> [String] {
+        if category == "全部" {
+            // 获取所有包含事件的分类
+            let eventCategories = events.map { $0.category }
+            let uniqueCategories = Array(Set(eventCategories)).sorted()
+            return uniqueCategories
+        } else {
+            // 如果已经按分类筛选，则只返回该分类
+            return [category]
+        }
+    }
+    
+    // 获取指定分类中的事件（按照筛选条件）
+    func eventsInCategory(_ category: String, filter filterCategory: String) -> [Event] {
+        if filterCategory == "全部" {
+            // 返回指定分类中的所有事件
+            return events.filter { $0.category == category }
+                .sorted { $0.daysRemaining < $1.daysRemaining }
+        } else if category == filterCategory {
+            // 如果筛选分类与当前分类相同，返回该分类中的所有事件
+            return events.filter { $0.category == category }
+                .sorted { $0.daysRemaining < $1.daysRemaining }
+        } else {
+            // 如果筛选分类与当前分类不同，返回空数组
+            return []
+        }
     }
     
     // 按类型筛选事件
