@@ -15,6 +15,29 @@ struct EventListView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
+                // 添加事件详细信息视图
+                if let currentEvent = eventStore.events.first {
+                    VStack(alignment: .center) {
+                        HStack {
+                            Image(systemName: currentEvent.displayIcon)
+                                .resizable()
+                                .frame(width: 50, height: 50)
+                                .padding(.trailing)
+                            VStack(alignment: .leading) {
+                                Text(currentEvent.name)
+                                    .font(.title)
+                                Text(currentEvent.formattedDays)
+                                    .font(.largeTitle)
+                                    .bold()
+                                Text("目标日: \(currentEvent.date, formatter: DateFormatter.customShortDate)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        .padding()
+                    }
+                }
+                
                 // 分类选择器
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
@@ -118,6 +141,16 @@ struct EventRow: View {
             }
         }
         .padding(.vertical, 8)
+    }
+}
+
+// 添加自定义日期格式化器
+extension DateFormatter {
+    static var customShortDate: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .none
+        return formatter
     }
 }
 

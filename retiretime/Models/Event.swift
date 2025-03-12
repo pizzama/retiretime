@@ -155,7 +155,7 @@ public struct Event: Identifiable, Codable {
         if daysRemaining == 0 {
             return "今天"
         } else if isCountdown {
-            return "还有\(days)天"
+            return "还剩\(days)天"
         } else {
             return "已过\(days)天"
         }
@@ -192,6 +192,13 @@ public struct Event: Identifiable, Codable {
                 colorData = nil
             }
         }
+    }
+    
+    public var remainingDays: Int {
+        let calendar = Calendar.current
+        let currentDate = Date()
+        let components = calendar.dateComponents([.day], from: currentDate, to: date)
+        return components.day ?? 0
     }
 }
 
