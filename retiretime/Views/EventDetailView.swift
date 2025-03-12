@@ -26,70 +26,101 @@ struct EventDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .center, spacing: 24) {
-                // 照片/图标显示
-                ZStack {
-                    if let imageName = event.imageName, !imageName.isEmpty {
-                        // 从文档目录加载图片
-                        if let image = loadImageFromDocumentDirectory(named: imageName) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 120, height: 120)
-                                .clipShape(RoundedRectangle(cornerRadius: 20))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                )
-                        } else {
-                            // 如果无法加载图片，显示默认图标
-                            Image(systemName: event.type.icon)
-                                .font(.system(size: 60))
-                                .foregroundColor(event.type.color)
-                                .frame(width: 120, height: 120)
-                                .background(event.type.color.opacity(0.1))
-                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                // 拍立得风格的照片
+                VStack(alignment: .center) {
+                    ZStack(alignment: .bottom) {
+                        // 照片部分
+                        ZStack {
+                            if let imageName = event.imageName, !imageName.isEmpty {
+                                // 从文档目录加载图片
+                                if let image = loadImageFromDocumentDirectory(named: imageName) {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 240, height: 240)
+                                        .clipped()
+                                } else {
+                                    // 如果无法加载图片，显示默认图标背景
+                                    Rectangle()
+                                        .fill(event.type.color.opacity(0.1))
+                                        .frame(width: 240, height: 240)
+                                    
+                                    Image(systemName: event.type.icon)
+                                        .font(.system(size: 80))
+                                        .foregroundColor(event.type.color)
+                                }
+                            } else {
+                                // 默认图标背景
+                                Rectangle()
+                                    .fill(event.type.color.opacity(0.1))
+                                    .frame(width: 240, height: 240)
+                                
+                                Image(systemName: event.type.icon)
+                                    .font(.system(size: 80))
+                                    .foregroundColor(event.type.color)
+                            }
+                            
+                            // 倒计时日期 - 右下角
+                            VStack {
+                                Spacer()
+                                HStack {
+                                    Spacer()
+                                    Text(event.daysRemaining == 0 ? "今天" : "\(abs(event.daysRemaining))天")
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(event.isCountdown ? Color.green.opacity(0.8) : Color.orange.opacity(0.8))
+                                        .cornerRadius(8)
+                                        .padding(12)
+                                }
+                            }
                         }
-                    } else {
-                        // 默认图标
-                        Image(systemName: event.type.icon)
-                            .font(.system(size: 60))
-                            .foregroundColor(event.type.color)
-                            .frame(width: 120, height: 120)
-                            .background(event.type.color.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .frame(width: 240, height: 240)
+                        
+                        // 拍立得白底部分
+                        VStack(spacing: 8) {
+                            Text(event.name)
+                                .font(.system(size: 20, weight: .bold))
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .padding(.horizontal, 10)
+                                .foregroundColor(.black)
+                            
+                            Text(event.formattedDate)
+                                .font(.system(size: 14))
+                                .foregroundColor(.black)
+                        }
+                        .frame(width: 240, height: 60)
+                        .background(Color.white)
                     }
+                    .frame(width: 240, height: 300)
+                    .background(Color.white)
+                    .cornerRadius(8)
+                    .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+                    .padding(.top, 20)
                     
                     // 照片选择按钮
-                    VStack {
-                        Spacer()
+                    Button(action: {
+                        showingPhotosPicker = true
+                    }) {
                         HStack {
-                            Spacer()
-                            Button(action: {
-                                showingPhotosPicker = true
-                            }) {
-                                Image(systemName: "camera.fill")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.white)
-                                    .padding(8)
-                                    .background(Color.blue)
-                                    .clipShape(Circle())
-                            }
-                            .padding(8)
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 14))
+                            Text("更换照片")
+                                .font(.system(size: 14))
                         }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.blue)
+                        .cornerRadius(20)
                     }
-                    .frame(width: 120, height: 120)
+                    .padding(.top, 12)
                 }
-                .padding(.top, 20)
-                
-                // 事件名称
-                Text(event.name)
-                    .font(.system(size: 24, weight: .bold))
-                    .multilineTextAlignment(.center)
-                
-                // 日期信息
-                Text(event.formattedDate)
-                    .font(.system(size: 18))
-                    .foregroundColor(.secondary)
                 
                 // 剩余/已过天数
                 VStack(spacing: 8) {
