@@ -28,19 +28,51 @@ struct EventDetailView: View {
             VStack(alignment: .center, spacing: 24) {
                 // 拍立得风格的照片
                 VStack(alignment: .center) {
-                    ZStack(alignment: .bottom) {
-                        // 照片部分
-                        ZStack {
-                            if let imageName = event.imageName, !imageName.isEmpty {
-                                // 从文档目录加载图片
-                                if let image = loadImageFromDocumentDirectory(named: imageName) {
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 240, height: 240)
-                                        .clipped()
+                    // 相框效果
+                    ZStack {
+                        // 相框背景 - 使用渐变色
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color(UIColor.systemBackground),
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 270, height: 350)
+                            .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
+                        
+                        // 相框边框
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(event.type.color.opacity(0.3), lineWidth: 2)
+                            .frame(width: 270, height: 350)
+                        
+                        // 拍立得照片
+                        ZStack(alignment: .bottom) {
+                            // 照片部分
+                            ZStack {
+                                if let imageName = event.imageName, !imageName.isEmpty {
+                                    // 从文档目录加载图片
+                                    if let image = loadImageFromDocumentDirectory(named: imageName) {
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 240, height: 240)
+                                            .clipped()
+                                    } else {
+                                        // 如果无法加载图片，显示默认图标背景
+                                        Rectangle()
+                                            .fill(event.type.color.opacity(0.1))
+                                            .frame(width: 240, height: 240)
+                                        
+                                        Image(systemName: event.type.icon)
+                                            .font(.system(size: 80))
+                                            .foregroundColor(event.type.color)
+                                    }
                                 } else {
-                                    // 如果无法加载图片，显示默认图标背景
+                                    // 默认图标背景
                                     Rectangle()
                                         .fill(event.type.color.opacity(0.1))
                                         .frame(width: 240, height: 240)
@@ -49,88 +81,123 @@ struct EventDetailView: View {
                                         .font(.system(size: 80))
                                         .foregroundColor(event.type.color)
                                 }
-                            } else {
-                                // 默认图标背景
-                                Rectangle()
-                                    .fill(event.type.color.opacity(0.1))
-                                    .frame(width: 240, height: 240)
-                                
-                                Image(systemName: event.type.icon)
-                                    .font(.system(size: 80))
-                                    .foregroundColor(event.type.color)
-                            }
                             
-                            // 倒计时日期 - 左下角
-                            VStack {
-                                Spacer()
-                                HStack {
-                                    Text(event.daysRemaining == 0 ? "今天" : "\(abs(event.daysRemaining))天")
-                                        .font(.system(size: 18, weight: .bold))
-                                        .foregroundColor(.white)
-                                        .padding(8)
-                                        .background(event.isCountdown ? Color.green.opacity(0.8) : Color.orange.opacity(0.8))
-                                        .cornerRadius(8)
-                                        .padding(12)
-                                    Spacer()
-                                }
                             }
-                        }
-                        .frame(width: 240, height: 240)
-                        
-                        // 拍立得白底部分
-                        VStack(spacing: 4) {
-                            // 事件名称
-                            Text(event.name)
-                                .font(.system(size: 20, weight: .bold))
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                                .padding(.horizontal, 10)
-                                .padding(.top, 8)
-                                .foregroundColor(.black)
+                            .frame(width: 240, height: 240)
+                            .padding(.bottom, 30)
                             
-                            // 备注（如果有）
-                            if !event.notes.isEmpty {
-                                Text(event.notes)
-                                    .font(.system(size: 12))
-                                    .italic()
-                                    .foregroundColor(.gray)
+                            // 拍立得白底部分
+                            VStack(spacing: 4) {
+                                // 事件名称
+                                Text(event.name)
+                                    .font(.system(size: 20, weight: .bold))
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                                     .padding(.horizontal, 10)
-                            }
-                            
-//                            Spacer()
-                            // 剩余/已过天数
-                            HStack(spacing: 8) {
-                                Text(event.daysRemaining == 0 ? "今天" : (event.isCountdown ? "倒计时" : "已过"))
-                                    .font(.system(size: 16))
+                                    .padding(.top, 16)
                                     .foregroundColor(.black)
-                        
-                                Text(event.daysRemaining == 0 ? "今天" : "\(abs(event.daysRemaining))天")
-                                    .font(.system(size: 20, weight: .bold))
+                                
+                                // 备注（如果有）
+                                if !event.notes.isEmpty {
+                                    Text(event.notes)
+                                        .font(.system(size: 12))
+                                        .italic()
+                                        .foregroundColor(.gray)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                        .padding(.horizontal, 10)
+                                }
+                                
+                                // 剩余/已过天数 - 使用手写风格标签
+                                Text(event.daysRemaining == 0 ? "今天" : 
+                                     (event.isCountdown ? "还有\(abs(event.daysRemaining))天" : "已过\(abs(event.daysRemaining))天"))
+                                    .font(.custom("Noteworthy", size: 14))
                                     .foregroundColor(event.isCountdown ? .green : .orange)
+                                    .padding(.top, 2)
+                                    .rotationEffect(.degrees(-2))
+                                
                             }
+                            .frame(width: 240, height: 80)
+                            .background(Color.white)
                         }
-                        .frame(width: 240, height: 70)
+                        .frame(width: 240, height: 320)
                         .background(Color.white)
-
+                        .cornerRadius(8)
+                        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                        .rotationEffect(.degrees(2))
+                        
+                        // 装饰元素 - 左上角
+                        Image(systemName: "star.fill")
+                            .foregroundColor(event.type.color)
+                            .font(.system(size: 20))
+                            .position(x: 35, y: 35)
+                        
+                        // 装饰元素 - 右上角
+                        Image(systemName: "heart.fill")
+                            .foregroundColor(event.type.color.opacity(0.7))
+                            .font(.system(size: 18))
+                            .position(x: 235, y: 35)
+                        
+                        // 装饰元素 - 右下角
+                        Image(systemName: "moon.stars.fill")
+                            .foregroundColor(event.type.color.opacity(0.8))
+                            .font(.system(size: 16))
+                            .position(x: 235, y: 315)
+                        
+                        // 装饰元素 - 左下角
+                        Image(systemName: "leaf.fill")
+                            .foregroundColor(event.type.color.opacity(0.6))
+                            .font(.system(size: 16))
+                            .position(x: 35, y: 315)
+                        
+                        // 装饰元素 - 顶部中间
+                        if event.type == .retirement {
+                            Image(systemName: "party.popper.fill")
+                                .foregroundColor(event.type.color.opacity(0.8))
+                                .font(.system(size: 18))
+                                .position(x: 130, y: 20)
+                        }
+                        
+                        // 装饰元素 - 底部中间
+                        if event.isCountdown {
+                            Image(systemName: "hourglass")
+                                .foregroundColor(event.type.color.opacity(0.7))
+                                .font(.system(size: 16))
+                                .position(x: 130, y: 310)
+                        } else {
+                            Image(systemName: "calendar.badge.clock")
+                                .foregroundColor(event.type.color.opacity(0.7))
+                                .font(.system(size: 16))
+                                .position(x: 130, y: 310)
+                        }
+                        
+                        // 装饰线条 - 顶部
+                        Path { path in
+                            path.move(to: CGPoint(x: 45, y: 20))
+                            path.addLine(to: CGPoint(x: 225, y: 20))
+                        }
+                        .stroke(event.type.color.opacity(0.4), lineWidth: 1)
+                        
+                        // 装饰线条 - 底部
+                        Path { path in
+                            path.move(to: CGPoint(x: 45, y: 330))
+                            path.addLine(to: CGPoint(x: 225, y: 330))
+                        }
+                        .stroke(event.type.color.opacity(0.4), lineWidth: 1)
                     }
-                    .frame(width: 240, height: 310)
-                    .background(Color.white)
-                    .cornerRadius(8)
-                    .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
                     .padding(.top, 20)
                     
                     // 日期信息
                     Text(event.formattedDate)
-                        .font(.custom("Noteworthy", size: 16)) // 使用手写风格字体
+                        .font(.custom("Noteworthy", size: 16))
                         .foregroundColor(.gray)
                         .padding(.top, 8)
-                        .padding(.trailing, 20) // 向左偏移一点，增强手写感
+                        .rotationEffect(.degrees(-3))
+                        .padding(.trailing, 20)
                     
                     // 照片选择按钮
                     Button(action: {
