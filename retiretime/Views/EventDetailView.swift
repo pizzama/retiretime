@@ -8,14 +8,85 @@
 import SwiftUI
 import PhotosUI
 
+// 定义头像框样式枚举
+enum FrameStyle: String, CaseIterable, Identifiable {
+    case classic = "经典"
+    case modern = "现代"
+    case vintage = "复古"
+    case colorful = "彩色"
+    case minimal = "简约"
+    
+    var id: String { self.rawValue }
+    
+    // 返回对应的边框颜色
+    var borderColor: Color {
+        switch self {
+        case .classic: return .gray
+        case .modern: return .blue
+        case .vintage: return .brown
+        case .colorful: return .purple
+        case .minimal: return .black
+        }
+    }
+    
+    // 返回对应的装饰元素
+    var decorationSymbols: [String] {
+        switch self {
+        case .classic: return ["star.fill", "heart.fill", "moon.stars.fill", "leaf.fill"]
+        case .modern: return ["circle.fill", "square.fill", "triangle.fill", "diamond.fill"]
+        case .vintage: return ["camera.fill", "clock.fill", "book.fill", "seal.fill"]
+        case .colorful: return ["sun.max.fill", "cloud.fill", "bolt.fill", "flame.fill"]
+        case .minimal: return []
+        }
+    }
+    
+    // 返回对应的背景渐变色
+    func backgroundGradient() -> LinearGradient {
+        switch self {
+        case .classic:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color(UIColor.systemBackground)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .modern:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.blue.opacity(0.1), Color(UIColor.systemBackground)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .vintage:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.brown.opacity(0.1), Color.yellow.opacity(0.05)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .colorful:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.purple.opacity(0.1), Color.pink.opacity(0.1), Color.blue.opacity(0.1)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .minimal:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.white]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+}
+
 struct EventDetailView: View {
     // 使用ID而不是直接存储event对象
     let eventId: UUID
     @ObservedObject var eventStore: EventStore
     @State private var showingEditSheet = false
     @State private var showingPhotosPicker = false
+    @State private var showingFramePicker = false
     @State private var selectedImage: UIImage?
     @State private var selectedImageName: String?
+    @State private var selectedFrameStyle: FrameStyle = .classic
     @Environment(\.presentationMode) var presentationMode
     
     // 计算属性，每次访问时都会从eventStore获取最新的event
@@ -32,21 +103,13 @@ struct EventDetailView: View {
                     ZStack {
                         // 相框背景 - 使用渐变色
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color(UIColor.systemBackground),
-                                    ]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                            .fill(selectedFrameStyle.backgroundGradient())
                             .frame(width: 270, height: 350)
                             .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
                         
                         // 相框边框
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(event.type.color.opacity(0.3), lineWidth: 2)
+                            .stroke(selectedFrameStyle.borderColor.opacity(0.3), lineWidth: 2)
                             .frame(width: 270, height: 350)
                         
                         // 拍立得照片
@@ -130,64 +193,81 @@ struct EventDetailView: View {
                         )
                         .rotationEffect(.degrees(2))
                         
-                        // 装饰元素 - 左上角
-                        Image(systemName: "star.fill")
-                            .foregroundColor(event.type.color)
-                            .font(.system(size: 20))
-                            .position(x: 35, y: 35)
-                        
-                        // 装饰元素 - 右上角
-                        Image(systemName: "heart.fill")
-                            .foregroundColor(event.type.color.opacity(0.7))
-                            .font(.system(size: 18))
-                            .position(x: 235, y: 35)
-                        
-                        // 装饰元素 - 右下角
-                        Image(systemName: "moon.stars.fill")
-                            .foregroundColor(event.type.color.opacity(0.8))
-                            .font(.system(size: 16))
-                            .position(x: 235, y: 315)
-                        
-                        // 装饰元素 - 左下角
-                        Image(systemName: "leaf.fill")
-                            .foregroundColor(event.type.color.opacity(0.6))
-                            .font(.system(size: 16))
-                            .position(x: 35, y: 315)
+                        // 根据选择的框样式添加装饰元素
+                        if selectedFrameStyle != .minimal {
+                            // 装饰元素 - 左上角
+                            if selectedFrameStyle.decorationSymbols.count > 0 {
+                                Image(systemName: selectedFrameStyle.decorationSymbols[0])
+                                    .foregroundColor(selectedFrameStyle.borderColor)
+                                    .font(.system(size: 20))
+                                    .position(x: 35, y: 35)
+                            }
+                            
+                            // 装饰元素 - 右上角
+                            if selectedFrameStyle.decorationSymbols.count > 1 {
+                                Image(systemName: selectedFrameStyle.decorationSymbols[1])
+                                    .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
+                                    .font(.system(size: 18))
+                                    .position(x: 235, y: 35)
+                            }
+                            
+                            // 装饰元素 - 右下角
+                            if selectedFrameStyle.decorationSymbols.count > 2 {
+                                Image(systemName: selectedFrameStyle.decorationSymbols[2])
+                                    .foregroundColor(selectedFrameStyle.borderColor.opacity(0.8))
+                                    .font(.system(size: 16))
+                                    .position(x: 235, y: 315)
+                            }
+                            
+                            // 装饰元素 - 左下角
+                            if selectedFrameStyle.decorationSymbols.count > 3 {
+                                Image(systemName: selectedFrameStyle.decorationSymbols[3])
+                                    .foregroundColor(selectedFrameStyle.borderColor.opacity(0.6))
+                                    .font(.system(size: 16))
+                                    .position(x: 35, y: 315)
+                            }
+                        }
                         
                         // 装饰元素 - 顶部中间
-                        if event.type == .retirement {
+                        if event.type == .retirement && selectedFrameStyle != .minimal {
                             Image(systemName: "party.popper.fill")
-                                .foregroundColor(event.type.color.opacity(0.8))
+                                .foregroundColor(selectedFrameStyle.borderColor.opacity(0.8))
                                 .font(.system(size: 18))
                                 .position(x: 130, y: 20)
                         }
                         
                         // 装饰元素 - 底部中间
-                        if event.isCountdown {
-                            Image(systemName: "hourglass")
-                                .foregroundColor(event.type.color.opacity(0.7))
-                                .font(.system(size: 16))
-                                .position(x: 130, y: 310)
-                        } else {
-                            Image(systemName: "calendar.badge.clock")
-                                .foregroundColor(event.type.color.opacity(0.7))
-                                .font(.system(size: 16))
-                                .position(x: 130, y: 310)
+                        if selectedFrameStyle != .minimal {
+                            if event.isCountdown {
+                                Image(systemName: "hourglass")
+                                    .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
+                                    .font(.system(size: 16))
+                                    .position(x: 130, y: 310)
+                            } else {
+                                Image(systemName: "calendar.badge.clock")
+                                    .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
+                                    .font(.system(size: 16))
+                                    .position(x: 130, y: 310)
+                            }
                         }
                         
                         // 装饰线条 - 顶部
-                        Path { path in
-                            path.move(to: CGPoint(x: 45, y: 20))
-                            path.addLine(to: CGPoint(x: 225, y: 20))
+                        if selectedFrameStyle != .minimal {
+                            Path { path in
+                                path.move(to: CGPoint(x: 45, y: 20))
+                                path.addLine(to: CGPoint(x: 225, y: 20))
+                            }
+                            .stroke(selectedFrameStyle.borderColor.opacity(0.4), lineWidth: 1)
                         }
-                        .stroke(event.type.color.opacity(0.4), lineWidth: 1)
                         
                         // 装饰线条 - 底部
-                        Path { path in
-                            path.move(to: CGPoint(x: 45, y: 330))
-                            path.addLine(to: CGPoint(x: 225, y: 330))
+                        if selectedFrameStyle != .minimal {
+                            Path { path in
+                                path.move(to: CGPoint(x: 45, y: 330))
+                                path.addLine(to: CGPoint(x: 225, y: 330))
+                            }
+                            .stroke(selectedFrameStyle.borderColor.opacity(0.4), lineWidth: 1)
                         }
-                        .stroke(event.type.color.opacity(0.4), lineWidth: 1)
                     }
                     .padding(.top, 20)
                     
@@ -199,21 +279,41 @@ struct EventDetailView: View {
                         .rotationEffect(.degrees(-3))
                         .padding(.trailing, 20)
                     
-                    // 照片选择按钮
-                    Button(action: {
-                        showingPhotosPicker = true
-                    }) {
-                        HStack {
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 14))
-                            Text("更换照片")
-                                .font(.system(size: 14))
+                    // 按钮行
+                    HStack(spacing: 16) {
+                        // 照片选择按钮
+                        Button(action: {
+                            showingPhotosPicker = true
+                        }) {
+                            HStack {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 14))
+                                Text("更换照片")
+                                    .font(.system(size: 14))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.blue)
+                            .cornerRadius(20)
                         }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.blue)
-                        .cornerRadius(20)
+                        
+                        // 头像框选择按钮
+                        Button(action: {
+                            showingFramePicker = true
+                        }) {
+                            HStack {
+                                Image(systemName: "square.on.square")
+                                    .font(.system(size: 14))
+                                Text("更换相框")
+                                    .font(.system(size: 14))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.green)
+                            .cornerRadius(20)
+                        }
                     }
                     .padding(.top, 12)
                 }
@@ -263,6 +363,9 @@ struct EventDetailView: View {
                     eventStore.updateEvent(updatedEvent)
                 }
             }
+        }
+        .sheet(isPresented: $showingFramePicker) {
+            FramePickerView(selectedFrameStyle: $selectedFrameStyle)
         }
     }
     
@@ -390,6 +493,53 @@ struct PhotoPicker: UIViewControllerRepresentable {
                 print("保存图片失败: \(error)")
                 return nil
             }
+        }
+    }
+}
+
+// 头像框选择视图
+struct FramePickerView: View {
+    @Binding var selectedFrameStyle: FrameStyle
+    @Environment(\.presentationMode) var presentationMode
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(FrameStyle.allCases) { style in
+                    Button(action: {
+                        selectedFrameStyle = style
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        HStack {
+                            // 预览框
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(style.backgroundGradient())
+                                .frame(width: 60, height: 60)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(style.borderColor.opacity(0.5), lineWidth: 2)
+                                )
+                            
+                            Text(style.rawValue)
+                                .font(.headline)
+                                .padding(.leading, 10)
+                            
+                            Spacer()
+                            
+                            if selectedFrameStyle == style {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .navigationTitle("选择相框样式")
+            .navigationBarItems(trailing: Button("取消") {
+                presentationMode.wrappedValue.dismiss()
+            })
         }
     }
 }
