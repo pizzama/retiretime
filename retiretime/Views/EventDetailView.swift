@@ -60,11 +60,10 @@ struct EventDetailView: View {
                                     .foregroundColor(event.type.color)
                             }
                             
-                            // 倒计时日期 - 右下角
+                            // 倒计时日期 - 左下角
                             VStack {
                                 Spacer()
                                 HStack {
-                                    Spacer()
                                     Text(event.daysRemaining == 0 ? "今天" : "\(abs(event.daysRemaining))天")
                                         .font(.system(size: 18, weight: .bold))
                                         .foregroundColor(.white)
@@ -72,28 +71,51 @@ struct EventDetailView: View {
                                         .background(event.isCountdown ? Color.green.opacity(0.8) : Color.orange.opacity(0.8))
                                         .cornerRadius(8)
                                         .padding(12)
+                                    Spacer()
                                 }
                             }
                         }
                         .frame(width: 240, height: 240)
                         
                         // 拍立得白底部分
-                        VStack(spacing: 8) {
+                        VStack(spacing: 4) {
+                            // 事件名称
                             Text(event.name)
                                 .font(.system(size: 20, weight: .bold))
                                 .multilineTextAlignment(.center)
                                 .lineLimit(2)
                                 .padding(.horizontal, 10)
+                                .padding(.top, 8)
                                 .foregroundColor(.black)
                             
-                            Text(event.formattedDate)
-                                .font(.system(size: 14))
-                                .foregroundColor(.black)
+                            // 备注（如果有）
+                            if !event.notes.isEmpty {
+                                Text(event.notes)
+                                    .font(.system(size: 12))
+                                    .italic()
+                                    .foregroundColor(.gray)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .padding(.horizontal, 10)
+                            }
+                            
+//                            Spacer()
+                            // 剩余/已过天数
+                            HStack(spacing: 8) {
+                                Text(event.daysRemaining == 0 ? "今天" : (event.isCountdown ? "倒计时" : "已过"))
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.black)
+                        
+                                Text(event.daysRemaining == 0 ? "今天" : "\(abs(event.daysRemaining))天")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundColor(event.isCountdown ? .green : .orange)
+                            }
                         }
-                        .frame(width: 240, height: 60)
+                        .frame(width: 240, height: 70)
                         .background(Color.white)
+
                     }
-                    .frame(width: 240, height: 300)
+                    .frame(width: 240, height: 310)
                     .background(Color.white)
                     .cornerRadius(8)
                     .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
@@ -102,6 +124,13 @@ struct EventDetailView: View {
                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                     )
                     .padding(.top, 20)
+                    
+                    // 日期信息
+                    Text(event.formattedDate)
+                        .font(.custom("Noteworthy", size: 16)) // 使用手写风格字体
+                        .foregroundColor(.gray)
+                        .padding(.top, 8)
+                        .padding(.trailing, 20) // 向左偏移一点，增强手写感
                     
                     // 照片选择按钮
                     Button(action: {
@@ -122,22 +151,6 @@ struct EventDetailView: View {
                     .padding(.top, 12)
                 }
                 
-                // 剩余/已过天数
-                VStack(spacing: 8) {
-                    Text(event.daysRemaining == 0 ? "今天" : (event.isCountdown ? "倒计时" : "已过"))
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
-                    
-                    Text(event.daysRemaining == 0 ? "今天" : "\(abs(event.daysRemaining))天")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(event.isCountdown ? .green : .orange)
-                }
-                .padding(.vertical, 16)
-                .frame(maxWidth: .infinity)
-                .background(Color(UIColor.systemBackground))
-                .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-                
                 // 详细信息区域
                 VStack(alignment: .leading, spacing: 16) {
                     // 类型
@@ -145,23 +158,6 @@ struct EventDetailView: View {
                     
                     // 分类
                     DetailRow(title: "分类", value: event.category, icon: "folder")
-                    
-                    // 备注
-                    if !event.notes.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: "note.text")
-                                    .foregroundColor(.secondary)
-                                Text("备注")
-                                    .font(.system(size: 16, weight: .medium))
-                            }
-                            
-                            Text(event.notes)
-                                .font(.system(size: 16))
-                                .foregroundColor(.primary)
-                                .padding(.leading, 26)
-                        }
-                    }
                     
                     // 提醒
                     if event.reminderEnabled {
