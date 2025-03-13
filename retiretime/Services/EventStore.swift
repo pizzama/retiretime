@@ -176,8 +176,8 @@ class EventStore: ObservableObject {
     
     // 检查并更新重复事件
     private func checkAndUpdateRepeatingEvents() {
-        let today = Date()
-        let calendar = Calendar.current
+        _ = Date()
+        _ = Calendar.current
         
         for event in events where event.repeatType != .none {
             // 如果事件已过期且需要重复

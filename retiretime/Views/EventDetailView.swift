@@ -15,6 +15,13 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     case vintage = "复古"
     case colorful = "彩色"
     case minimal = "简约"
+    case template = "模板"
+    case mask = "蒙版"
+    case imageFrame = "相框"
+    case circleFrame = "圆形"
+    case heartFrame = "心形"
+    case flowerFrame = "花朵"
+    case starFrame = "星形"
     
     var id: String { self.rawValue }
     
@@ -26,6 +33,13 @@ enum FrameStyle: String, CaseIterable, Identifiable {
         case .vintage: return .brown
         case .colorful: return .purple
         case .minimal: return .black
+        case .template: return .green
+        case .mask: return .orange
+        case .imageFrame: return .pink
+        case .circleFrame: return .red
+        case .heartFrame: return .pink
+        case .flowerFrame: return Color(red: 1.0, green: 0.6, blue: 0.6)
+        case .starFrame: return .yellow
         }
     }
     
@@ -37,6 +51,13 @@ enum FrameStyle: String, CaseIterable, Identifiable {
         case .vintage: return ["camera.fill", "clock.fill", "book.fill", "seal.fill"]
         case .colorful: return ["sun.max.fill", "cloud.fill", "bolt.fill", "flame.fill"]
         case .minimal: return []
+        case .template: return ["sparkles", "wand.and.stars", "gift", "party.popper"]
+        case .mask: return ["person.crop.circle", "person.crop.square", "heart", "star"]
+        case .imageFrame: return ["photo.on.rectangle", "photo.artframe", "photo.stack", "photo.tv"]
+        case .circleFrame: return ["circle", "circle.fill", "circle.dotted", "circle.dashed"]
+        case .heartFrame: return ["heart", "heart.fill", "heart.circle", "heart.square"]
+        case .flowerFrame: return ["leaf", "leaf.fill", "leaf.circle", "leaf.arrow.triangle.circlepath"]
+        case .starFrame: return ["star", "star.fill", "star.circle", "star.square"]
         }
     }
     
@@ -73,25 +94,98 @@ enum FrameStyle: String, CaseIterable, Identifiable {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        case .template:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.green.opacity(0.1), Color.blue.opacity(0.05)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .mask:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.orange.opacity(0.1), Color.yellow.opacity(0.05)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .imageFrame:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.pink.opacity(0.1), Color.purple.opacity(0.05)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .circleFrame:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.red.opacity(0.1), Color.orange.opacity(0.05)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .heartFrame:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.pink.opacity(0.1), Color.red.opacity(0.05)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .flowerFrame:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color(red: 1.0, green: 0.6, blue: 0.6).opacity(0.1), Color(red: 1.0, green: 0.8, blue: 0.8).opacity(0.05)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .starFrame:
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.yellow.opacity(0.1), Color.orange.opacity(0.05)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
+    }
+    
+    // 返回蒙版或相框的名称
+    var maskImageName: String? {
+        switch self {
+        case .mask:
+            return "mask_circle" // 圆形蒙版
+        case .imageFrame:
+            return "frame_polaroid" // 拍立得相框
+        case .circleFrame:
+            return "mask_circle" // 圆形蒙版
+        case .heartFrame:
+            return "mask_heart" // 心形蒙版
+        case .flowerFrame:
+            return "flower_frame" // 花朵相框
+        case .starFrame:
+            return "mask_star" // 星形蒙版
+        default:
+            return nil
+        }
+    }
+    
+    // 判断是否使用蒙版或相框
+    var usesMaskOrFrame: Bool {
+        return self == .mask || self == .imageFrame || self == .circleFrame || self == .heartFrame || self == .flowerFrame || self == .starFrame
     }
 }
 
 struct EventDetailView: View {
-    // 使用ID而不是直接存储event对象
-    let eventId: UUID
-    @ObservedObject var eventStore: EventStore
+    let event: Event
+    @State private var selectedFrameStyle: FrameStyle = .template
+    @State private var selectedTemplateType: DecorationType = .polaroid
     @State private var showingEditSheet = false
     @State private var showingPhotosPicker = false
     @State private var showingFramePicker = false
-    @State private var selectedImage: UIImage?
-    @State private var selectedImageName: String?
-    @State private var selectedFrameStyle: FrameStyle = .classic
-    @Environment(\.presentationMode) var presentationMode
+    @State private var selectedImage: UIImage? = nil
+    @State private var selectedImageName: String? = nil
+    let eventStore: EventStore
     
-    // 计算属性，每次访问时都会从eventStore获取最新的event
-    var event: Event {
-        eventStore.events.first { $0.id == eventId }!
+    init(event: Event, eventStore: EventStore) {
+        self.event = event
+        self.eventStore = eventStore
+        
+        // 根据event中保存的frameStyleName设置初始框样式
+        if let frameStyleName = event.frameStyleName, let style = FrameStyle(rawValue: frameStyleName) {
+            _selectedFrameStyle = State(initialValue: style)
+        } else {
+            _selectedFrameStyle = State(initialValue: .template)
+        }
     }
     
     var body: some View {
@@ -119,11 +213,37 @@ struct EventDetailView: View {
                                 if let imageName = event.imageName, !imageName.isEmpty {
                                     // 从文档目录加载图片
                                     if let image = loadImageFromDocumentDirectory(named: imageName) {
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 240, height: 240)
-                                            .clipped()
+                                        // 使用TemplateImageGenerator处理图片
+                                        if selectedFrameStyle.usesMaskOrFrame {
+                                            if let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
+                                                originalImage: image,
+                                                frameStyle: selectedFrameStyle
+                                            ) {
+                                                Image(uiImage: processedImage)
+                                                    .resizable()
+                                                    .scaledToFit()
+                                                    .frame(width: 240, height: 240)
+                                            } else {
+                                                // 如果处理失败，显示原始图片
+                                                Image(uiImage: image)
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .frame(width: 240, height: 240)
+                                                    .clipped()
+                                                    .overlay(
+                                                        Text("相框处理失败")
+                                                            .foregroundColor(.red)
+                                                            .background(Color.white.opacity(0.7))
+                                                    )
+                                            }
+                                        } else {
+                                            // 使用普通样式
+                                            Image(uiImage: image)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 240, height: 240)
+                                                .clipped()
+                                        }
                                     } else {
                                         // 如果无法加载图片，显示默认图标背景
                                         Rectangle()
@@ -147,7 +267,7 @@ struct EventDetailView: View {
                             
                             }
                             .frame(width: 240, height: 240)
-                            .padding(.bottom, 30)
+                            .padding(.bottom, 80)
                             
                             // 拍立得白底部分
                             VStack(spacing: 4) {
@@ -183,7 +303,7 @@ struct EventDetailView: View {
                             .frame(width: 240, height: 80)
                             .background(Color.white)
                         }
-                        .frame(width: 240, height: 320)
+                        .frame(width: 240, height: 360)
                         .background(Color.white)
                         .cornerRadius(8)
                         .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
@@ -194,7 +314,7 @@ struct EventDetailView: View {
                         .rotationEffect(.degrees(2))
                         
                         // 根据选择的框样式添加装饰元素
-                        if selectedFrameStyle != .minimal {
+                        if selectedFrameStyle != .minimal && !selectedFrameStyle.usesMaskOrFrame {
                             // 装饰元素 - 左上角
                             if selectedFrameStyle.decorationSymbols.count > 0 {
                                 Image(systemName: selectedFrameStyle.decorationSymbols[0])
@@ -229,7 +349,7 @@ struct EventDetailView: View {
                         }
                         
                         // 装饰元素 - 顶部中间
-                        if event.type == .retirement && selectedFrameStyle != .minimal {
+                        if event.type == .retirement && selectedFrameStyle != .minimal && !selectedFrameStyle.usesMaskOrFrame {
                             Image(systemName: "party.popper.fill")
                                 .foregroundColor(selectedFrameStyle.borderColor.opacity(0.8))
                                 .font(.system(size: 18))
@@ -237,7 +357,7 @@ struct EventDetailView: View {
                         }
                         
                         // 装饰元素 - 底部中间
-                        if selectedFrameStyle != .minimal {
+                        if selectedFrameStyle != .minimal && !selectedFrameStyle.usesMaskOrFrame {
                             if event.isCountdown {
                                 Image(systemName: "hourglass")
                                     .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
@@ -252,7 +372,7 @@ struct EventDetailView: View {
                         }
                         
                         // 装饰线条 - 顶部
-                        if selectedFrameStyle != .minimal {
+                        if selectedFrameStyle != .minimal && !selectedFrameStyle.usesMaskOrFrame {
                             Path { path in
                                 path.move(to: CGPoint(x: 45, y: 20))
                                 path.addLine(to: CGPoint(x: 225, y: 20))
@@ -261,7 +381,7 @@ struct EventDetailView: View {
                         }
                         
                         // 装饰线条 - 底部
-                        if selectedFrameStyle != .minimal {
+                        if selectedFrameStyle != .minimal && !selectedFrameStyle.usesMaskOrFrame {
                             Path { path in
                                 path.move(to: CGPoint(x: 45, y: 330))
                                 path.addLine(to: CGPoint(x: 225, y: 330))
@@ -365,7 +485,7 @@ struct EventDetailView: View {
             }
         }
         .sheet(isPresented: $showingFramePicker) {
-            FramePickerView(selectedFrameStyle: $selectedFrameStyle)
+            FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: event, eventStore: eventStore)
         }
     }
     
@@ -501,6 +621,8 @@ struct PhotoPicker: UIViewControllerRepresentable {
 struct FramePickerView: View {
     @Binding var selectedFrameStyle: FrameStyle
     @Environment(\.presentationMode) var presentationMode
+    var event: Event
+    var eventStore: EventStore
     
     var body: some View {
         NavigationView {
@@ -508,6 +630,12 @@ struct FramePickerView: View {
                 ForEach(FrameStyle.allCases) { style in
                     Button(action: {
                         selectedFrameStyle = style
+                        
+                        // 更新Event对象和保存
+                        var updatedEvent = event
+                        updatedEvent.frameStyleName = style.rawValue
+                        try? eventStore.updateEvent(updatedEvent)
+                        
                         presentationMode.wrappedValue.dismiss()
                     }) {
                         HStack {
@@ -516,8 +644,19 @@ struct FramePickerView: View {
                                 .fill(style.backgroundGradient())
                                 .frame(width: 60, height: 60)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(style.borderColor.opacity(0.5), lineWidth: 2)
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(style.borderColor.opacity(0.5), lineWidth: 2)
+                                        
+                                        // 如果是蒙版或相框样式，显示预览图标
+                                        if style.usesMaskOrFrame {
+                                            Image(systemName: "photo")
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 30, height: 30)
+                                                .foregroundColor(style.borderColor)
+                                        }
+                                    }
                                 )
                             
                             Text(style.rawValue)
@@ -544,8 +683,18 @@ struct FramePickerView: View {
     }
 }
 
+// 装饰类型枚举
+enum DecorationType: String, CaseIterable, Identifiable {
+    case none = "无装饰"
+    case polaroid = "拍立得"
+    case vintage = "复古"
+    case modern = "现代"
+    
+    var id: String { self.rawValue }
+}
+
 #Preview {
     NavigationView {
-        EventDetailView(eventId: Event.samples[0].id, eventStore: EventStore())
+        EventDetailView(event: Event.samples[0], eventStore: EventStore())
     }
 }

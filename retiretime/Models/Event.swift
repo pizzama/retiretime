@@ -126,6 +126,7 @@ public struct Event: Identifiable, Codable {
     public var repeatType: RepeatType = .none // 重复类型
     public var lastOccurrence: Date? = nil // 上次发生日期，用于计算下次重复日期
     public var imageName: String? = nil // 图片名称
+    public var frameStyleName: String? = nil // 相框样式名称
     
     // 退休日特有属性
     public var birthDate: Date? = nil // 出生日期
@@ -272,11 +273,20 @@ public extension Event {
         let entryDate = calendar.date(from: entryDateComponents)!
         let pastDate2 = calendar.date(byAdding: .day, value: -30, to: today)!
         
-        return [
-            Event(name: "退休日", date: retirementDate, type: .retirement, notes: "期待已久的退休日", category: "个人", birthDate: birthDate, gender: .male),
-            Event(name: "结婚纪念日", date: pastDate1, type: .countdown, notes: "美好的一天", category: "家庭"),
-            Event(name: "生日", date: futureDate2, type: .countdown, notes: "又要长一岁了", category: "个人"),
-            Event(name: "入职日", date: entryDate, type: .countdown, notes: "开始新工作的日子", category: "工作")
-        ]
+        var event1 = Event(name: "退休日", date: retirementDate, type: .retirement, notes: "期待已久的退休日", category: "个人")
+        event1.birthDate = birthDate
+        event1.gender = .male
+        event1.frameStyleName = "花朵"
+        
+        var event2 = Event(name: "结婚纪念日", date: pastDate1, type: .countdown, notes: "美好的一天", category: "家庭")
+        event2.frameStyleName = "心形"
+        
+        var event3 = Event(name: "生日", date: futureDate2, type: .countdown, notes: "又要长一岁了", category: "个人")
+        event3.frameStyleName = "星形"
+        
+        var event4 = Event(name: "入职日", date: entryDate, type: .countdown, notes: "开始新工作的日子", category: "工作")
+        event4.frameStyleName = "经典"
+        
+        return [event1, event2, event3, event4]
     }
 }

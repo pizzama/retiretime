@@ -1,0 +1,93 @@
+{
+  "name": "flower_frame",
+  "type": "frame",
+  "description": "一个花朵形状的相框，适合用于生日、纪念日等场合",
+  "paths": [
+    {
+      "type": "petal",
+      "points": [
+        {"x": 0.5, "y": 0.1},
+        {"x": 0.7, "y": 0.3},
+        {"x": 0.5, "y": 0.5}
+      ],
+      "color": "#FF9999",
+      "rotation": 0
+    },
+    {
+      "type": "petal",
+      "points": [
+        {"x": 0.5, "y": 0.1},
+        {"x": 0.7, "y": 0.3},
+        {"x": 0.5, "y": 0.5}
+      ],
+      "color": "#FF9999",
+      "rotation": 45
+    },
+    {
+      "type": "petal",
+      "points": [
+        {"x": 0.5, "y": 0.1},
+        {"x": 0.7, "y": 0.3},
+        {"x": 0.5, "y": 0.5}
+      ],
+      "color": "#FF9999",
+      "rotation": 90
+    },
+    {
+      "type": "petal",
+      "points": [
+        {"x": 0.5, "y": 0.1},
+        {"x": 0.7, "y": 0.3},
+        {"x": 0.5, "y": 0.5}
+      ],
+      "color": "#FF9999",
+      "rotation": 135
+    },
+    {
+      "type": "petal",
+      "points": [
+        {"x": 0.5, "y": 0.1},
+        {"x": 0.7, "y": 0.3},
+        {"x": 0.5, "y": 0.5}
+      ],
+      "color": "#FF9999",
+      "rotation": 180
+    },
+    {
+      "type": "petal",
+      "points": [
+        {"x": 0.5, "y": 0.1},
+        {"x": 0.7, "y": 0.3},
+        {"x": 0.5, "y": 0.5}
+      ],
+      "color": "#FF9999",
+      "rotation": 225
+    },
+    {
+      "type": "petal",
+      "points": [
+        {"x": 0.5, "y": 0.1},
+        {"x": 0.7, "y": 0.3},
+        {"x": 0.5, "y": 0.5}
+      ],
+      "color": "#FF9999",
+      "rotation": 270
+    },
+    {
+      "type": "petal",
+      "points": [
+        {"x": 0.5, "y": 0.1},
+        {"x": 0.7, "y": 0.3},
+        {"x": 0.5, "y": 0.5}
+      ],
+      "color": "#FF9999",
+      "rotation": 315
+    },
+    {
+      "type": "circle",
+      "center": {"x": 0.5, "y": 0.5},
+      "radius": 0.3,
+      "color": "#FFFFFF"
+    }
+  ]
+} 
