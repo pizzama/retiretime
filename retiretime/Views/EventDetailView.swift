@@ -732,7 +732,7 @@ struct PhotoPreviewView: View {
                                                     Image(maskName)
                                                         .resizable()
                                                         .scaledToFit()
-                                                        .opacity(1.0)
+                                                        .opacity(0.85)
                                                 }
                                             }
                                         )
