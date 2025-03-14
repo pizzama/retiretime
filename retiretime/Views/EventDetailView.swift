@@ -177,6 +177,26 @@ struct EventDetailView: View {
     @State private var selectedImageName: String? = nil
     let eventStore: EventStore
     @State private var childEvents: [Event] = []
+    @State private var showingPreview = false
+    @State private var activeSheet: ActiveSheet? = nil
+    
+    enum ActiveSheet: Identifiable {
+        case photosPicker
+        case framePicker
+        case editSheet
+        case childEventForm
+        case preview
+        
+        var id: Int {
+            switch self {
+            case .photosPicker: return 1
+            case .framePicker: return 2
+            case .editSheet: return 3
+            case .childEventForm: return 4
+            case .preview: return 5
+            }
+        }
+    }
     
     init(event: Event, eventStore: EventStore) {
         self.event = event
@@ -222,17 +242,21 @@ struct EventDetailView: View {
                                         if selectedFrameStyle.usesMaskOrFrame {
                                             if let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
                                                 originalImage: image,
-                                                frameStyle: selectedFrameStyle
+                                                frameStyle: selectedFrameStyle,
+                                                scale: event.imageScale,
+                                                offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
                                             ) {
                                                 Image(uiImage: processedImage)
                                                     .resizable()
                                                     .scaledToFit()
                                                     .frame(width: 240, height: 240)
                                             } else {
-                                                // 如果处理失败，显示原始图片
+                                                // 如果处理失败，显示原始图片，应用缩放和偏移
                                                 Image(uiImage: image)
                                                     .resizable()
                                                     .scaledToFill()
+                                                    .scaleEffect(event.imageScale)
+                                                    .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
                                                     .frame(width: 240, height: 240)
                                                     .clipped()
                                                     .overlay(
@@ -242,10 +266,12 @@ struct EventDetailView: View {
                                                     )
                                             }
                                         } else {
-                                            // 使用普通样式
+                                            // 使用普通样式，应用缩放和偏移
                                             Image(uiImage: image)
                                                 .resizable()
                                                 .scaledToFill()
+                                                .scaleEffect(event.imageScale)
+                                                .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
                                                 .frame(width: 240, height: 240)
                                                 .clipped()
                                         }
@@ -408,7 +434,7 @@ struct EventDetailView: View {
                     HStack(spacing: 16) {
                         // 照片选择按钮
                         Button(action: {
-                            showingPhotosPicker = true
+                            activeSheet = .photosPicker
                         }) {
                             HStack {
                                 Image(systemName: "camera.fill")
@@ -425,7 +451,7 @@ struct EventDetailView: View {
                         
                         // 头像框选择按钮
                         Button(action: {
-                            showingFramePicker = true
+                            activeSheet = .framePicker
                         }) {
                             HStack {
                                 Image(systemName: "square.on.square")
@@ -466,7 +492,7 @@ struct EventDetailView: View {
                 
                 // 添加子事件按钮
                 Button(action: {
-                    showingChildEventForm = true
+                    activeSheet = .childEventForm
                 }) {
                     HStack {
                         Image(systemName: "plus.circle.fill")
@@ -508,33 +534,81 @@ struct EventDetailView: View {
         .navigationBarTitle("", displayMode: .inline)
         .navigationBarItems(
             trailing: Button(action: {
-                showingEditSheet = true
+                activeSheet = .editSheet
             }) {
                 Text("编辑")
             }
         )
-        .sheet(isPresented: $showingEditSheet) {
-            EventFormView(eventStore: eventStore, editingEvent: event)
-        }
-        .sheet(isPresented: $showingPhotosPicker) {
-            PhotoPicker(selectedImage: $selectedImage, selectedImageName: $selectedImageName) { imageName in
-                if let imageName = imageName {
-                    // 更新事件的照片
-                    var updatedEvent = event
-                    updatedEvent.imageName = imageName
-                    eventStore.updateEvent(updatedEvent)
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .photosPicker:
+                PhotoPicker(
+                    selectedImage: $selectedImage,
+                    selectedImageName: $selectedImageName,
+                    showingPreview: $showingPreview,
+                    event: event,
+                    eventStore: eventStore,
+                    frameStyle: selectedFrameStyle
+                ) { imageName in
+                    if let imageName = imageName {
+                        // 更新事件的照片
+                        var updatedEvent = event
+                        updatedEvent.imageName = imageName
+                        eventStore.updateEvent(updatedEvent)
+                    }
+                    activeSheet = nil
+                }
+            case .framePicker:
+                FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: event, eventStore: eventStore)
+                    .onDisappear {
+                        activeSheet = nil
+                    }
+            case .editSheet:
+                EventFormView(eventStore: eventStore, editingEvent: event)
+                    .onDisappear {
+                        activeSheet = nil
+                    }
+            case .childEventForm:
+                ChildEventFormView(parentEvent: event, eventStore: eventStore)
+                    .onDisappear {
+                        // 表单关闭时刷新子事件列表
+                        childEvents = eventStore.childEvents(for: event)
+                        activeSheet = nil
+                    }
+            case .preview:
+                if let image = selectedImage {
+                    PhotoPreviewView(
+                        image: image,
+                        event: event,
+                        eventStore: eventStore,
+                        frameStyle: selectedFrameStyle
+                    )
+                    .onDisappear {
+                        // 清除预览状态
+                        showingPreview = false
+                        activeSheet = nil
+                    }
+                } else {
+                    // 如果图片为空，显示错误信息
+                    VStack {
+                        Text("错误：无法加载图片")
+                            .foregroundColor(.red)
+                            .padding()
+                        
+                        Button("关闭") {
+                            showingPreview = false
+                            activeSheet = nil
+                        }
+                        .padding()
+                    }
                 }
             }
         }
-        .sheet(isPresented: $showingFramePicker) {
-            FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: event, eventStore: eventStore)
-        }
-        .sheet(isPresented: $showingChildEventForm) {
-            ChildEventFormView(parentEvent: event, eventStore: eventStore)
-                .onDisappear {
-                    // 表单关闭时刷新子事件列表
-                    childEvents = eventStore.childEvents(for: event)
-                }
+        .onChange(of: showingPreview) { newValue in
+            if newValue {
+                print("showingPreview 变为 true，设置 activeSheet = .preview")
+                activeSheet = .preview
+            }
         }
         .onAppear {
             // 刷新子事件列表
@@ -597,10 +671,307 @@ struct DetailRow: View {
     }
 }
 
-// 照片选择器
+// 照片预览视图
+struct PhotoPreviewView: View {
+    @Environment(\.presentationMode) var presentationMode
+    @State private var imageScale: CGFloat = 1.0
+    @State private var lastImageScale: CGFloat = 1.0
+    @State private var imageOffset: CGSize = .zero
+    @State private var lastImageOffset: CGSize = .zero
+    @State private var isDragging: Bool = false
+    @State private var showingSaveAlert = false
+    @State private var debugMessage: String = ""
+    
+    let image: UIImage
+    let event: Event
+    let eventStore: EventStore
+    let frameStyle: FrameStyle
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                // 调试信息
+                if !debugMessage.isEmpty {
+                    Text(debugMessage)
+                        .foregroundColor(.red)
+                        .padding()
+                }
+                
+                // 预览区域
+                GeometryReader { geometry in
+                    ZStack {
+                        // 背景 - 使用与详情页相同的背景
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(frameStyle.backgroundGradient())
+                            .frame(width: 270, height: 350)
+                            .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
+                        
+                        // 相框边框
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(frameStyle.borderColor.opacity(0.3), lineWidth: 2)
+                            .frame(width: 270, height: 350)
+                        
+                        // 拍立得照片
+                        ZStack(alignment: .bottom) {
+                            // 照片部分
+                            ZStack {
+                                // 显示照片，应用缩放和偏移
+                                if frameStyle.usesMaskOrFrame {
+                                    // 使用蒙版或相框样式的预览
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .scaleEffect(imageScale)
+                                        .offset(imageOffset)
+                                        .frame(width: 240, height: 240)
+                                        .clipped()
+                                        .overlay(
+                                            // 显示相框或蒙版的轮廓
+                                            Group {
+                                                if let maskName = frameStyle.maskImageName {
+                                                    Image(maskName)
+                                                        .resizable()
+                                                        .scaledToFit()
+                                                        .opacity(0.3)
+                                                }
+                                            }
+                                        )
+                                } else {
+                                    // 普通样式预览
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .scaleEffect(imageScale)
+                                        .offset(imageOffset)
+                                        .frame(width: 240, height: 240)
+                                        .clipped()
+                                }
+                            }
+                            .frame(width: 240, height: 240)
+                            .padding(.bottom, 80)
+                            
+                            // 拍立得白底部分
+                            VStack(spacing: 4) {
+                                // 事件名称
+                                Text(event.name)
+                                    .font(.system(size: 20, weight: .bold))
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .padding(.horizontal, 10)
+                                    .padding(.top, 16)
+                                    .foregroundColor(.black)
+                                
+                                // 备注（如果有）
+                                if !event.notes.isEmpty {
+                                    Text(event.notes)
+                                        .font(.system(size: 12))
+                                        .italic()
+                                        .foregroundColor(.gray)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                        .padding(.horizontal, 10)
+                                }
+                                
+                                // 剩余/已过天数
+                                Text(event.daysRemaining == 0 ? "今天" : 
+                                     (event.isCountdown ? "还有\(abs(event.daysRemaining))天" : "已过\(abs(event.daysRemaining))天"))
+                                    .font(.custom("Noteworthy", size: 14))
+                                    .foregroundColor(event.isCountdown ? .green : .orange)
+                                    .padding(.top, 2)
+                                    .rotationEffect(.degrees(-2))
+                            }
+                            .frame(width: 240, height: 80)
+                            .background(Color.white)
+                        }
+                        .frame(width: 240, height: 360)
+                        .background(Color.white)
+                        .cornerRadius(8)
+                        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                        .rotationEffect(.degrees(2))
+                        // 将手势移到这里，应用于整个拍立得照片区域
+                        .gesture(
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    let delta = value / lastImageScale
+                                    lastImageScale = value
+                                    imageScale = min(max(imageScale * delta, 0.5), 3.0)
+                                }
+                                .onEnded { _ in
+                                    lastImageScale = 1.0
+                                }
+                        )
+                        .simultaneousGesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    imageOffset = CGSize(
+                                        width: lastImageOffset.width + value.translation.width,
+                                        height: lastImageOffset.height + value.translation.height
+                                    )
+                                    // 设置拖动状态为true，减少视图更新
+                                    isDragging = true
+                                }
+                                .onEnded { _ in
+                                    lastImageOffset = imageOffset
+                                    // 拖动结束后恢复状态
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        isDragging = false
+                                    }
+                                }
+                        )
+                        
+                        // 根据选择的框样式添加装饰元素
+                        if frameStyle != .minimal && !frameStyle.usesMaskOrFrame {
+                            // 装饰元素 - 左上角
+                            if frameStyle.decorationSymbols.count > 0 {
+                                Image(systemName: frameStyle.decorationSymbols[0])
+                                    .foregroundColor(frameStyle.borderColor)
+                                    .font(.system(size: 20))
+                                    .position(x: 35, y: 35)
+                            }
+                            
+                            // 装饰元素 - 右上角
+                            if frameStyle.decorationSymbols.count > 1 {
+                                Image(systemName: frameStyle.decorationSymbols[1])
+                                    .foregroundColor(frameStyle.borderColor.opacity(0.7))
+                                    .font(.system(size: 18))
+                                    .position(x: 235, y: 35)
+                            }
+                            
+                            // 装饰元素 - 右下角
+                            if frameStyle.decorationSymbols.count > 2 {
+                                Image(systemName: frameStyle.decorationSymbols[2])
+                                    .foregroundColor(frameStyle.borderColor.opacity(0.8))
+                                    .font(.system(size: 16))
+                                    .position(x: 235, y: 315)
+                            }
+                            
+                            // 装饰元素 - 左下角
+                            if frameStyle.decorationSymbols.count > 3 {
+                                Image(systemName: frameStyle.decorationSymbols[3])
+                                    .foregroundColor(frameStyle.borderColor.opacity(0.6))
+                                    .font(.system(size: 16))
+                                    .position(x: 35, y: 315)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                
+                // 调整信息
+                // 只在非拖动状态下显示调整信息，减少视图更新频率
+                if !isDragging {
+                    Text("缩放: \(String(format: "%.1f", imageScale))x  位置: (\(String(format: "%.0f", imageOffset.width)), \(String(format: "%.0f", imageOffset.height)))")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        .padding(.top, 8)
+                }
+                
+                // 控制按钮
+                HStack(spacing: 20) {
+                    Button(action: {
+                        // 重置缩放和位置
+                        withAnimation {
+                            imageScale = 1.0
+                            imageOffset = .zero
+                            lastImageScale = 1.0
+                            lastImageOffset = .zero
+                        }
+                    }) {
+                        Label("重置", systemImage: "arrow.counterclockwise")
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(Color.blue)
+                            .cornerRadius(20)
+                    }
+                    
+                    Button(action: {
+                        showingSaveAlert = true
+                    }) {
+                        Label("保存", systemImage: "checkmark")
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(Color.green)
+                            .cornerRadius(20)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("调整照片")
+            .navigationBarItems(trailing: Button("取消") {
+                presentationMode.wrappedValue.dismiss()
+            })
+            .alert(isPresented: $showingSaveAlert) {
+                Alert(
+                    title: Text("保存照片"),
+                    message: Text("确定要保存这张照片吗？"),
+                    primaryButton: .default(Text("保存")) {
+                        // 保存照片和调整信息
+                        if let imageName = saveImageWithAdjustments() {
+                            var updatedEvent = event
+                            updatedEvent.imageName = imageName
+                            // 保存缩放和位置信息
+                            updatedEvent.imageScale = imageScale
+                            updatedEvent.imageOffsetX = imageOffset.width
+                            updatedEvent.imageOffsetY = imageOffset.height
+                            eventStore.updateEvent(updatedEvent)
+                            presentationMode.wrappedValue.dismiss()
+                        }
+                    },
+                    secondaryButton: .cancel(Text("取消"))
+                )
+            }
+            .onAppear {
+                // 初始化缩放和位置
+                imageScale = event.imageScale > 0 ? event.imageScale : 1.0
+                imageOffset = CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
+                lastImageOffset = imageOffset
+                
+                // 检查图片是否有效
+                if image.size.width == 0 || image.size.height == 0 {
+                    debugMessage = "警告: 图片尺寸为零"
+                }
+            }
+        }
+    }
+    
+    // 保存图片和调整信息
+    private func saveImageWithAdjustments() -> String? {
+        let imageName = "event_image_\(UUID().uuidString).jpg"
+        
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+              let imageData = image.jpegData(compressionQuality: 0.8) else {
+            debugMessage = "保存失败: 无法获取文档目录或转换图片数据"
+            return nil
+        }
+        
+        let fileURL = documentsDirectory.appendingPathComponent(imageName)
+        
+        do {
+            try imageData.write(to: fileURL)
+            print("成功保存图片: \(imageName), 缩放: \(imageScale), 偏移: \(imageOffset)")
+            return imageName
+        } catch {
+            debugMessage = "保存图片失败: \(error.localizedDescription)"
+            print("保存图片失败: \(error)")
+            return nil
+        }
+    }
+}
+
+// 修改PhotoPicker
 struct PhotoPicker: UIViewControllerRepresentable {
     @Binding var selectedImage: UIImage?
     @Binding var selectedImageName: String?
+    @Binding var showingPreview: Bool
+    var event: Event
+    var eventStore: EventStore
+    var frameStyle: FrameStyle
     var onSelect: (String?) -> Void
     
     func makeUIViewController(context: Context) -> PHPickerViewController {
@@ -635,40 +1006,24 @@ struct PhotoPicker: UIViewControllerRepresentable {
             }
             
             result.itemProvider.loadObject(ofClass: UIImage.self) { (object, error) in
+                if let error = error {
+                    print("加载图片错误: \(error.localizedDescription)")
+                }
+                
                 if let image = object as? UIImage {
                     DispatchQueue.main.async {
+                        print("成功加载图片，尺寸: \(image.size.width) x \(image.size.height)")
                         self.parent.selectedImage = image
                         
-                        // 保存图片到应用文档目录
-                        if let imageName = self.saveImage(image) {
-                            self.parent.selectedImageName = imageName
-                            self.parent.onSelect(imageName)
-                        } else {
-                            self.parent.onSelect(nil)
+                        // 确保图片已经设置后再显示预览
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            self.parent.showingPreview = true
                         }
                     }
                 } else {
+                    print("无法加载图片对象")
                     self.parent.onSelect(nil)
                 }
-            }
-        }
-        
-        private func saveImage(_ image: UIImage) -> String? {
-            let imageName = "event_image_\(UUID().uuidString).jpg"
-            
-            guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
-                  let imageData = image.jpegData(compressionQuality: 0.8) else {
-                return nil
-            }
-            
-            let fileURL = documentsDirectory.appendingPathComponent(imageName)
-            
-            do {
-                try imageData.write(to: fileURL)
-                return imageName
-            } catch {
-                print("保存图片失败: \(error)")
-                return nil
             }
         }
     }
@@ -797,8 +1152,26 @@ struct ChildEventDetailView: View {
     @State private var showingDeleteAlert = false
     @State private var selectedImage: UIImage? = nil
     @State private var selectedImageName: String? = nil
+    @State private var showingPreview = false
+    @State private var activeSheet: ActiveSheet? = nil
     let eventStore: EventStore
     @Environment(\.presentationMode) var presentationMode
+    
+    enum ActiveSheet: Identifiable {
+        case photosPicker
+        case framePicker
+        case editSheet
+        case preview
+        
+        var id: Int {
+            switch self {
+            case .photosPicker: return 1
+            case .framePicker: return 2
+            case .editSheet: return 3
+            case .preview: return 4
+            }
+        }
+    }
     
     init(event: Event, eventStore: EventStore) {
         self.event = event
@@ -834,52 +1207,35 @@ struct ChildEventDetailView: View {
                         ZStack(alignment: .bottom) {
                             // 照片部分
                             ZStack {
-                                if let imageName = event.imageName, !imageName.isEmpty {
-                                    // 从文档目录加载图片
-                                    if let image = loadImageFromDocumentDirectory(named: imageName) {
-                                        // 使用TemplateImageGenerator处理图片
-                                        if selectedFrameStyle.usesMaskOrFrame {
-                                            if let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
-                                                originalImage: image,
-                                                frameStyle: selectedFrameStyle
-                                            ) {
-                                                Image(uiImage: processedImage)
-                                                    .resizable()
-                                                    .scaledToFit()
-                                                    .frame(width: 260, height: 260)
-                                            } else {
-                                                // 如果处理失败，显示原始图片
-                                                Image(uiImage: image)
-                                                    .resizable()
-                                                    .scaledToFill()
-                                                    .frame(width: 240, height: 240)
-                                                    .clipped()
-                                                    .overlay(
-                                                        Text("相框处理失败")
-                                                            .foregroundColor(.red)
-                                                            .background(Color.white.opacity(0.7))
-                                                    )
-                                            }
-                                        } else {
-                                            // 使用普通样式
-                                            Image(uiImage: image)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 240, height: 240)
-                                                .clipped()
-                                        }
+                                if let imageName = event.imageName, !imageName.isEmpty,
+                                   let image = loadImageFromDocumentDirectory(named: imageName) {
+                                    
+                                    // 如果有相框样式
+                                    if let frameStyleName = event.frameStyleName,
+                                       let frameStyle = FrameStyle(rawValue: frameStyleName),
+                                       frameStyle.usesMaskOrFrame,
+                                       let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
+                                           originalImage: image,
+                                           frameStyle: frameStyle,
+                                           scale: event.imageScale,
+                                           offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
+                                       ) {
+                                        Image(uiImage: processedImage)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 260, height: 260)
                                     } else {
-                                        // 如果无法加载图片，显示默认图标背景
-                                        Rectangle()
-                                            .fill(event.type.color.opacity(0.1))
+                                        // 使用普通样式
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .scaleEffect(event.imageScale)
+                                            .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
                                             .frame(width: 240, height: 240)
-                                        
-                                        Image(systemName: event.type.icon)
-                                            .font(.system(size: 80))
-                                            .foregroundColor(event.type.color)
+                                            .clipped()
                                     }
                                 } else {
-                                    // 默认图标背景
+                                    // 显示默认图标背景
                                     Rectangle()
                                         .fill(event.type.color.opacity(0.1))
                                         .frame(width: 240, height: 240)
@@ -951,7 +1307,7 @@ struct ChildEventDetailView: View {
                     HStack(spacing: 16) {
                         // 照片选择按钮
                         Button(action: {
-                            showingPhotosPicker = true
+                            activeSheet = .photosPicker
                         }) {
                             HStack {
                                 Image(systemName: "camera.fill")
@@ -968,7 +1324,7 @@ struct ChildEventDetailView: View {
                         
                         // 头像框选择按钮
                         Button(action: {
-                            showingFramePicker = true
+                            activeSheet = .framePicker
                         }) {
                             HStack {
                                 Image(systemName: "square.on.square")
@@ -991,26 +1347,68 @@ struct ChildEventDetailView: View {
         .navigationTitle(event.name)
         .navigationBarItems(
             trailing: Button(action: {
-                showingEditSheet = true
+                activeSheet = .editSheet
             }) {
                 Text("编辑")
             }
         )
-        .sheet(isPresented: $showingPhotosPicker) {
-            PhotoPicker(selectedImage: $selectedImage, selectedImageName: $selectedImageName) { imageName in
-                if let imageName = imageName {
-                    // 更新事件的照片
-                    var updatedEvent = event
-                    updatedEvent.imageName = imageName
-                    eventStore.updateEvent(updatedEvent)
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .photosPicker:
+                PhotoPicker(
+                    selectedImage: $selectedImage,
+                    selectedImageName: $selectedImageName,
+                    showingPreview: $showingPreview,
+                    event: event,
+                    eventStore: eventStore,
+                    frameStyle: selectedFrameStyle
+                ) { imageName in
+                    if let imageName = imageName {
+                        // 更新事件的照片
+                        var updatedEvent = event
+                        updatedEvent.imageName = imageName
+                        eventStore.updateEvent(updatedEvent)
+                    }
+                    activeSheet = nil
+                }
+            case .framePicker:
+                FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: event, eventStore: eventStore)
+                    .onDisappear {
+                        activeSheet = nil
+                    }
+            case .editSheet:
+                ChildEventEditView(eventStore: eventStore, childEvent: event)
+                    .onDisappear {
+                        activeSheet = nil
+                    }
+            case .preview:
+                if let image = selectedImage {
+                    PhotoPreviewView(
+                        image: image,
+                        event: event,
+                        eventStore: eventStore,
+                        frameStyle: selectedFrameStyle
+                    )
+                    .onDisappear {
+                        // 清除预览状态
+                        showingPreview = false
+                        activeSheet = nil
+                    }
+                } else {
+                    // 如果图片为空，显示错误信息
+                    VStack {
+                        Text("错误：无法加载图片")
+                            .foregroundColor(.red)
+                            .padding()
+                        
+                        Button("关闭") {
+                            showingPreview = false
+                            activeSheet = nil
+                        }
+                        .padding()
+                    }
                 }
             }
-        }
-        .sheet(isPresented: $showingFramePicker) {
-            FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: event, eventStore: eventStore)
-        }
-        .sheet(isPresented: $showingEditSheet) {
-            ChildEventEditView(eventStore: eventStore, childEvent: event)
         }
         .alert(isPresented: $showingDeleteAlert) {
             Alert(
@@ -1034,6 +1432,12 @@ struct ChildEventDetailView: View {
                     }
                     .foregroundColor(.red)
                 }
+            }
+        }
+        .onChange(of: showingPreview) { newValue in
+            if newValue {
+                print("showingPreview 变为 true，设置 activeSheet = .preview")
+                activeSheet = .preview
             }
         }
     }
@@ -1073,7 +1477,9 @@ struct ChildEventCard: View {
                        frameStyle.usesMaskOrFrame,
                        let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
                            originalImage: image,
-                           frameStyle: frameStyle
+                           frameStyle: frameStyle,
+                           scale: event.imageScale,
+                           offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
                        ) {
                         Image(uiImage: processedImage)
                             .resizable()
@@ -1084,6 +1490,8 @@ struct ChildEventCard: View {
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
+                            .scaleEffect(event.imageScale)
+                            .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
                             .frame(width: 120, height: 120)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                     }

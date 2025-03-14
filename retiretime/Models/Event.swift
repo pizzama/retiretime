@@ -129,6 +129,11 @@ public struct Event: Identifiable, Codable {
     public var frameStyleName: String? = nil // 相框样式名称
     public var parentId: UUID? = nil // 父事件ID，如果有的话
     
+    // 照片调整属性
+    public var imageScale: CGFloat = 1.0 // 图片缩放比例
+    public var imageOffsetX: CGFloat = 0.0 // 图片X轴偏移
+    public var imageOffsetY: CGFloat = 0.0 // 图片Y轴偏移
+    
     // 退休日特有属性
     public var birthDate: Date? = nil // 出生日期
     public var gender: Gender? = nil // 性别

@@ -35,6 +35,53 @@ class TemplateImageGenerator {
     
     private init() {}
     
+    // 生成模板图像，支持缩放和偏移
+    func generateTemplateImage(originalImage: UIImage, frameStyle: FrameStyle, scale: CGFloat = 1.0, offset: CGSize = .zero) -> UIImage? {
+        // 应用缩放和偏移到原始图像
+        let adjustedImage = applyScaleAndOffset(to: originalImage, scale: scale, offset: offset)
+        
+        // 根据框架样式选择处理方法
+        if let maskName = frameStyle.maskImageName {
+            if maskName.contains("frame") {
+                return generateFramedImage(originalImage: adjustedImage, frameName: maskName)
+            } else {
+                return generateMaskedImage(originalImage: adjustedImage, maskName: maskName)
+            }
+        }
+        
+        // 如果没有特殊处理，返回调整后的原始图像
+        return adjustedImage
+    }
+    
+    // 原有的 generateTemplateImage 方法，保持向后兼容
+    func generateTemplateImage(originalImage: UIImage, frameStyle: FrameStyle) -> UIImage? {
+        return generateTemplateImage(originalImage: originalImage, frameStyle: frameStyle, scale: 1.0, offset: .zero)
+    }
+    
+    // 应用缩放和偏移到图像
+    private func applyScaleAndOffset(to image: UIImage, scale: CGFloat, offset: CGSize) -> UIImage {
+        // 如果没有缩放和偏移，直接返回原图
+        if scale == 1.0 && offset == .zero {
+            return image
+        }
+        
+        // 创建一个与原始图片大小相同的上下文
+        let size = image.size
+        UIGraphicsBeginImageContextWithOptions(size, false, image.scale)
+        defer { UIGraphicsEndImageContext() }
+        
+        let context = UIGraphicsGetCurrentContext()
+        context?.translateBy(x: size.width / 2 + offset.width, y: size.height / 2 + offset.height)
+        context?.scaleBy(x: scale, y: scale)
+        context?.translateBy(x: -size.width / 2, y: -size.height / 2)
+        
+        // 绘制图像
+        image.draw(in: CGRect(origin: .zero, size: size))
+        
+        // 获取调整后的图像
+        return UIGraphicsGetImageFromCurrentImageContext() ?? image
+    }
+    
     // 使用蒙版生成图片
     func generateMaskedImage(originalImage: UIImage, maskName: String) -> UIImage? {
         guard let maskImage = UIImage(named: maskName) else {
@@ -519,62 +566,6 @@ class TemplateImageGenerator {
         )
         
         symbolConfig.draw(in: symbolRect)
-    }
-    
-    // 根据FrameStyle生成模板图片
-    func generateTemplateImage(originalImage: UIImage, frameStyle: FrameStyle) -> UIImage? {
-        print("开始生成模板图片，框架样式: \(frameStyle.rawValue)")
-        
-        // 如果框架样式使用蒙版或相框，使用相应的处理方法
-        if frameStyle.usesMaskOrFrame {
-            guard let maskName = frameStyle.maskImageName else {
-                print("找不到蒙版或相框名称")
-                return nil
-            }
-            
-            print("尝试使用蒙版或相框: \(maskName)")
-            
-            // 首先尝试特殊框架处理方法
-            if maskName == "flower_frame" {
-                print("使用花朵框架特殊处理")
-                if let framedImage = generateFramedImage(originalImage: originalImage, frameName: maskName) {
-                    print("花朵框架处理成功")
-                    return framedImage
-                } else {
-                    print("花朵框架处理失败")
-                    return nil
-                }
-            }
-            
-            // 尝试应用蒙版
-            if let maskedImage = generateMaskedImage(originalImage: originalImage, maskName: maskName) {
-                print("应用蒙版成功")
-                return maskedImage
-            }
-            
-            // 尝试应用相框
-            if let framedImage = generateFramedImage(originalImage: originalImage, frameName: maskName) {
-                print("应用相框成功")
-                return framedImage
-            }
-            
-            print("所有处理方法都失败了")
-            return nil
-        }
-        
-        // 如果框架样式不使用蒙版，使用默认样式
-        print("应用普通边框样式")
-        // 应用边框
-        if let borderedImage = generateBorderedImage(
-            originalImage: originalImage,
-            borderColor: UIColor(frameStyle.borderColor),
-            borderWidth: 3.0
-        ) {
-            return borderedImage
-        } else {
-            print("应用边框失败")
-            return nil
-        }
     }
 }
 
