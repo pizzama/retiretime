@@ -44,31 +44,78 @@ struct EventListView: View {
         Group {
             if let currentEvent = eventStore.events.first {
                 VStack(alignment: .center) {
-                    HStack {
-                        // 左侧照片
-                        eventImage(for: currentEvent, size: 60)
-                            .padding(.trailing, 10)
+                    ZStack {
+                        // 背景
+                        RoundedRectangle(cornerRadius: 15)
+                            .fill(Color.gray.opacity(0.05))
+                            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
                         
-                        // 中间事件信息
-                        VStack(alignment: .leading) {
-                            Text(currentEvent.name)
-                                .font(.title3)
-                                .fontWeight(.bold)
-                            Text(currentEvent.daysRemaining == 0 ? "今天" : 
-                                 (currentEvent.isCountdown ? "剩余 \(abs(currentEvent.daysRemaining)) 天" : "已过 \(abs(currentEvent.daysRemaining)) 天"))
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(currentEvent.isCountdown ? .green : .orange)
-                            Text("\(currentEvent.date, formatter: dateFormatter)")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
+                        HStack(spacing: 15) {
+                            // 左侧照片
+                            ZStack {
+                                if let imageName = currentEvent.imageName, !imageName.isEmpty,
+                                   let image = loadImageFromDocumentDirectory(named: imageName) {
+                                    
+                                    // 如果有相框样式
+                                    if let frameStyleName = currentEvent.frameStyleName,
+                                       let frameStyle = FrameStyle(rawValue: frameStyleName),
+                                       frameStyle.usesMaskOrFrame,
+                                       let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
+                                           originalImage: image,
+                                           frameStyle: frameStyle,
+                                           scale: currentEvent.imageScale,
+                                           offset: CGSize(width: currentEvent.imageOffsetX, height: currentEvent.imageOffsetY)
+                                       ) {
+                                        Image(uiImage: processedImage)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 80, height: 80)
+                                    } else {
+                                        // 使用普通样式
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .scaleEffect(currentEvent.imageScale)
+                                            .offset(CGSize(width: currentEvent.imageOffsetX, height: currentEvent.imageOffsetY))
+                                            .frame(width: 80, height: 80)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                } else {
+                                    // 显示默认图标背景
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(currentEvent.type.color.opacity(0.1))
+                                        .frame(width: 80, height: 80)
+                                    
+                                    Image(systemName: currentEvent.type.icon)
+                                        .font(.system(size: 30))
+                                        .foregroundColor(currentEvent.type.color)
+                                }
+                            }
+                            .frame(width: 80, height: 80)
+                            
+                            // 中间事件信息
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(currentEvent.name)
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                    .lineLimit(1)
+                                
+                                Text(currentEvent.daysRemaining == 0 ? "今天" : 
+                                     (currentEvent.isCountdown ? "还有\(abs(currentEvent.daysRemaining))天" : "已过\(abs(currentEvent.daysRemaining))天"))
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(currentEvent.isCountdown ? .green : .orange)
+                                
+                                Text(currentEvent.formattedDate)
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Spacer()
                         }
-                        
-                        Spacer()
+                        .padding()
                     }
-                    .padding()
-                    .background(Color.gray.opacity(0.05))
-                    .cornerRadius(15)
+                    .frame(height: 110)
                     .padding(.horizontal)
                 }
                 .padding(.top)
@@ -121,15 +168,24 @@ struct EventListView: View {
         // 获取该分类下的事件
         let events = eventStore.eventsInCategory(category, filter: selectedCategory)
         
-        return LazyVGrid(columns: [
-            GridItem(.flexible()),
-            GridItem(.flexible())
-        ], spacing: 12) {
-            ForEach(events) { event in
-                NavigationLink(destination: EventDetailView(event: event, eventStore: eventStore)) {
-                    eventCard(for: event)
+        return VStack(alignment: .leading) {
+            // 分类标题
+            Text(category)
+                .font(.headline)
+                .padding(.leading, 8)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+            
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 16) {
+                ForEach(events) { event in
+                    NavigationLink(destination: EventDetailView(event: event, eventStore: eventStore)) {
+                        eventCard(for: event)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .buttonStyle(PlainButtonStyle())
             }
         }
         .padding(.horizontal)
@@ -137,69 +193,71 @@ struct EventListView: View {
     
     // 事件卡片视图
     private func eventCard(for event: Event) -> some View {
-        HStack {
-            // 左侧照片/图标
-            eventImage(for: event, size: 50)
-            
-            // 右侧事件信息
-            VStack(alignment: .leading, spacing: 2) {
-                Text(event.name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                
-                Text(event.daysRemaining == 0 ? "今天" : 
-                     (event.isCountdown ? "剩余 \(abs(event.daysRemaining)) 天" : "已过 \(abs(event.daysRemaining)) 天"))
-                    .font(.callout)
-                    .fontWeight(.bold)
-                    .foregroundColor(event.isCountdown ? .green : .orange)
-                
-                Text("\(event.date, formatter: dateFormatter)")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-            .padding(.leading, 4)
-            
-            Spacer()
-        }
-        .padding(10)
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(12)
-    }
-    
-    // 事件图片视图
-    private func eventImage(for event: Event, size: CGFloat) -> some View {
-        ZStack {
-            if let imageName = event.imageName, !imageName.isEmpty {
-                // 从文档目录加载图片
-                if let image = loadImageFromDocumentDirectory(named: imageName) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: size, height: size)
-                        .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
+        VStack(alignment: .leading) {
+            // 图片部分
+            ZStack {
+                if let imageName = event.imageName, !imageName.isEmpty,
+                   let image = loadImageFromDocumentDirectory(named: imageName) {
+                    
+                    // 如果有相框样式
+                    if let frameStyleName = event.frameStyleName,
+                       let frameStyle = FrameStyle(rawValue: frameStyleName),
+                       frameStyle.usesMaskOrFrame,
+                       let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
+                           originalImage: image,
+                           frameStyle: frameStyle,
+                           scale: event.imageScale,
+                           offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
+                       ) {
+                        Image(uiImage: processedImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 120, height: 120)
+                    } else {
+                        // 使用普通样式
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .scaleEffect(event.imageScale)
+                            .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
+                            .frame(width: 120, height: 120)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
                 } else {
-                    // 如果无法加载图片，显示默认图标
-                    defaultEventIcon(for: event, size: size * 0.66)
+                    // 显示默认图标背景
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(event.type.color.opacity(0.1))
+                        .frame(width: 120, height: 120)
+                    
+                    Image(systemName: event.type.icon)
+                        .font(.system(size: 40))
+                        .foregroundColor(event.type.color)
                 }
-            } else {
-                // 默认图标
-                defaultEventIcon(for: event, size: size * 0.66)
             }
+            .frame(width: 120, height: 120)
+            .padding(.bottom, 8)
+            
+            // 事件信息
+            Text(event.name)
+                .font(.system(size: 16, weight: .medium))
+                .lineLimit(1)
+                .padding(.horizontal, 4)
+            
+            Text(event.daysRemaining == 0 ? "今天" : 
+                 (event.isCountdown ? "还有\(abs(event.daysRemaining))天" : "已过\(abs(event.daysRemaining))天"))
+                .font(.system(size: 13))
+                .foregroundColor(event.isCountdown ? .green : .orange)
+                .padding(.horizontal, 4)
+            
+            Text(event.formattedDate)
+                .font(.system(size: 12))
+                .foregroundColor(.gray)
+                .padding(.horizontal, 4)
         }
-        .frame(width: size, height: size)
-    }
-    
-    // 默认事件图标视图
-    private func defaultEventIcon(for event: Event, size: CGFloat) -> some View {
-        Image(systemName: event.displayIcon)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .foregroundColor(event.type.color)
-            .padding(size * 0.25)
-            .background(event.type.color.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
+        .frame(width: 160, height: 200)
+        .background(Color(UIColor.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
     
     // 从文档目录加载图片
@@ -217,14 +275,6 @@ struct EventListView: View {
             print("加载图片失败: \(error)")
             return nil
         }
-    }
-    
-    // 日期格式化器
-    private var dateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .none
-        return formatter
     }
 }
 
