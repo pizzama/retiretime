@@ -122,9 +122,12 @@ class EventStore: ObservableObject {
     // 根据分类筛选事件
     func filteredEvents(by category: String) -> [Event] {
         if category == "全部" {
-            return events.sorted { $0.daysRemaining < $1.daysRemaining }
+            // 只返回非子事件
+            return events.filter { $0.parentId == nil }
+                .sorted { $0.daysRemaining < $1.daysRemaining }
         } else {
-            return events.filter { $0.category == category }
+            // 只返回指定分类的非子事件
+            return events.filter { $0.category == category && $0.parentId == nil }
                 .sorted { $0.daysRemaining < $1.daysRemaining }
         }
     }
@@ -132,8 +135,8 @@ class EventStore: ObservableObject {
     // 获取包含事件的分类列表（按照筛选条件）
     func categoriesWithEvents(filter category: String) -> [String] {
         if category == "全部" {
-            // 获取所有包含事件的分类
-            let eventCategories = events.map { $0.category }
+            // 获取所有包含非子事件的分类
+            let eventCategories = events.filter { $0.parentId == nil }.map { $0.category }
             let uniqueCategories = Array(Set(eventCategories)).sorted()
             return uniqueCategories
         } else {
@@ -145,12 +148,12 @@ class EventStore: ObservableObject {
     // 获取指定分类中的事件（按照筛选条件）
     func eventsInCategory(_ category: String, filter filterCategory: String) -> [Event] {
         if filterCategory == "全部" {
-            // 返回指定分类中的所有事件
-            return events.filter { $0.category == category }
+            // 返回指定分类中的所有非子事件
+            return events.filter { $0.category == category && $0.parentId == nil }
                 .sorted { $0.daysRemaining < $1.daysRemaining }
         } else if category == filterCategory {
-            // 如果筛选分类与当前分类相同，返回该分类中的所有事件
-            return events.filter { $0.category == category }
+            // 如果筛选分类与当前分类相同，返回该分类中的所有非子事件
+            return events.filter { $0.category == category && $0.parentId == nil }
                 .sorted { $0.daysRemaining < $1.daysRemaining }
         } else {
             // 如果筛选分类与当前分类不同，返回空数组
@@ -160,8 +163,8 @@ class EventStore: ObservableObject {
     
     // 按类型筛选事件
     func filteredEvents(by type: EventType?) -> [Event] {
-        guard let type = type else { return events }
-        return events.filter { $0.type == type }
+        guard let type = type else { return events.filter { $0.parentId == nil } }
+        return events.filter { $0.type == type && $0.parentId == nil }
     }
     
     // 获取即将到来的事件（用于Widget显示）
@@ -169,7 +172,8 @@ class EventStore: ObservableObject {
         // 检查是否有需要更新的重复事件
         checkAndUpdateRepeatingEvents()
         
-        let upcoming = events.filter { $0.daysRemaining >= 0 }
+        // 仅考虑非子事件
+        let upcoming = events.filter { $0.daysRemaining >= 0 && $0.parentId == nil }
             .sorted { $0.daysRemaining < $1.daysRemaining }
         return Array(upcoming.prefix(limit))
     }
@@ -231,5 +235,39 @@ class EventStore: ObservableObject {
             events[index] = updatedEvent
             saveEvents()
         }
+    }
+    
+    // 获取指定事件的所有子事件
+    func childEvents(for parentEvent: Event) -> [Event] {
+        return events.filter { $0.parentId == parentEvent.id }
+            .sorted { $0.daysRemaining < $1.daysRemaining }
+    }
+    
+    // 创建子事件
+    func createChildEvent(for parentEvent: Event, name: String, date: Date) -> Event {
+        // 创建一个新的子事件，继承父事件的一些属性
+        var childEvent = Event(
+            name: name,
+            date: date,
+            type: parentEvent.type,
+            calendarType: parentEvent.calendarType,
+            category: parentEvent.category
+        )
+        
+        // 设置父事件ID
+        childEvent.parentId = parentEvent.id
+        
+        // 添加新事件
+        addEvent(childEvent)
+        
+        return childEvent
+    }
+    
+    // 删除子事件
+    func deleteChildEvent(_ childEvent: Event) {
+        guard childEvent.parentId != nil else { return }
+        
+        // 删除该子事件
+        deleteEvent(childEvent)
     }
 }

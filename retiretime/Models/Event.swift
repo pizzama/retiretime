@@ -127,10 +127,16 @@ public struct Event: Identifiable, Codable {
     public var lastOccurrence: Date? = nil // 上次发生日期，用于计算下次重复日期
     public var imageName: String? = nil // 图片名称
     public var frameStyleName: String? = nil // 相框样式名称
+    public var parentId: UUID? = nil // 父事件ID，如果有的话
     
     // 退休日特有属性
     public var birthDate: Date? = nil // 出生日期
     public var gender: Gender? = nil // 性别
+    
+    // 判断是否为子事件
+    public var isChildEvent: Bool {
+        return parentId != nil
+    }
     
     // 计算剩余天数或已过天数
     public var daysRemaining: Int {
