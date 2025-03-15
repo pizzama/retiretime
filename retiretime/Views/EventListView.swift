@@ -150,17 +150,44 @@ struct EventListView: View {
     private var eventList: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // 获取分类
-                let categories = eventStore.categoriesWithEvents(filter: selectedCategory)
-                
-                // 遍历分类
-                ForEach(categories, id: \.self) { category in
-                    // 事件网格
-                    eventGrid(for: category)
+                if selectedCategory == "全部" {
+                    // 当选择"全部"时，显示所有事件在一个网格中
+                    allEventsGrid
+                } else {
+                    // 获取分类
+                    let categories = eventStore.categoriesWithEvents(filter: selectedCategory)
+                    
+                    // 遍历分类
+                    ForEach(categories, id: \.self) { category in
+                        // 事件网格
+                        eventGrid(for: category)
+                    }
                 }
             }
             .padding(.bottom, 16)
         }
+    }
+    
+    // 所有事件的网格视图
+    private var allEventsGrid: some View {
+        // 获取所有事件（当选择"全部"分类时）
+        let allEvents = eventStore.filteredEvents(by: selectedCategory)
+        
+        return VStack(alignment: .leading) {
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 12) {
+                ForEach(allEvents) { event in
+                    NavigationLink(destination: EventDetailView(event: event, eventStore: eventStore)) {
+                        eventCard(for: event)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+        }
+        .padding(.horizontal)
     }
     
     // 事件网格视图
