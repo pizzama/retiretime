@@ -169,13 +169,6 @@ struct EventListView: View {
         let events = eventStore.eventsInCategory(category, filter: selectedCategory)
         
         return VStack(alignment: .leading) {
-            // 分类标题
-            Text(category)
-                .font(.headline)
-                .padding(.leading, 8)
-                .padding(.top, 16)
-                .padding(.bottom, 8)
-            
             LazyVGrid(columns: [
                 GridItem(.flexible()),
                 GridItem(.flexible()),
