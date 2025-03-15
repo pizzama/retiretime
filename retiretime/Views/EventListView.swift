@@ -24,7 +24,7 @@ struct EventListView: View {
                 // 事件列表
                 eventList
             }
-            .navigationTitle("退休倒计时")
+            .navigationTitle("退休倒计时 v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"))")
             .navigationBarItems(
                 trailing: Button(action: {
                     showingAddEvent = true
