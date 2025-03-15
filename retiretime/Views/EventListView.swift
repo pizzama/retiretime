@@ -83,7 +83,7 @@ struct EventListView: View {
                                 } else {
                                     // 显示默认图标背景
                                     RoundedRectangle(cornerRadius: 8)
-                                        .fill(currentEvent.type.color.opacity(0.1))
+                                        .fill(Color.clear)
                                         .frame(width: 80, height: 80)
                                     
                                     Image(systemName: currentEvent.type.icon)
@@ -220,7 +220,7 @@ struct EventListView: View {
                 } else {
                     // 显示默认图标背景
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(event.type.color.opacity(0.1))
+                        .fill(Color.clear)
                         .frame(width: 120, height: 120)
                     
                     Image(systemName: event.type.icon)
@@ -249,7 +249,6 @@ struct EventListView: View {
                 .padding(.horizontal, 4)
         }
         .frame(width: 120, height: 200)
-        .background(Color(UIColor.systemBackground))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
