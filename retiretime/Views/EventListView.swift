@@ -178,8 +178,9 @@ struct EventListView: View {
             
             LazyVGrid(columns: [
                 GridItem(.flexible()),
+                GridItem(.flexible()),
                 GridItem(.flexible())
-            ], spacing: 16) {
+            ], spacing: 12) {
                 ForEach(events) { event in
                     NavigationLink(destination: EventDetailView(event: event, eventStore: eventStore)) {
                         eventCard(for: event)
@@ -220,7 +221,7 @@ struct EventListView: View {
                             .scaledToFill()
                             .scaleEffect(event.imageScale)
                             .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
-                            .frame(width: 120, height: 120)
+                            .frame(width: 100, height: 100)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                 } else {
@@ -254,7 +255,7 @@ struct EventListView: View {
                 .foregroundColor(.gray)
                 .padding(.horizontal, 4)
         }
-        .frame(width: 160, height: 200)
+        .frame(width: 120, height: 200)
         .background(Color(UIColor.systemBackground))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
