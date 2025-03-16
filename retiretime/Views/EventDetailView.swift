@@ -11,10 +11,6 @@ import PhotosUI
 // 定义头像框样式枚举
 enum FrameStyle: String, CaseIterable, Identifiable {
     case classic = "经典"
-    case modern = "现代"
-    case vintage = "复古"
-    case colorful = "彩色"
-    case minimal = "简约"
     case template = "模板"
     case mask = "蒙版"
     case imageFrame = "相框"
@@ -29,10 +25,6 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     var borderColor: Color {
         switch self {
         case .classic: return .gray
-        case .modern: return .blue
-        case .vintage: return .brown
-        case .colorful: return .purple
-        case .minimal: return .black
         case .template: return .green
         case .mask: return .orange
         case .imageFrame: return .pink
@@ -47,10 +39,6 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     var decorationSymbols: [String] {
         switch self {
         case .classic: return ["star.fill", "heart.fill", "moon.stars.fill", "leaf.fill"]
-        case .modern: return ["circle.fill", "square.fill", "triangle.fill", "diamond.fill"]
-        case .vintage: return ["camera.fill", "clock.fill", "book.fill", "seal.fill"]
-        case .colorful: return ["sun.max.fill", "cloud.fill", "bolt.fill", "flame.fill"]
-        case .minimal: return []
         case .template: return ["sparkles", "wand.and.stars", "gift", "party.popper"]
         case .mask: return ["person.crop.circle", "person.crop.square", "heart", "star"]
         case .imageFrame: return ["photo.on.rectangle", "photo.artframe", "photo.stack", "photo.tv"]
@@ -67,30 +55,6 @@ enum FrameStyle: String, CaseIterable, Identifiable {
         case .classic:
             return LinearGradient(
                 gradient: Gradient(colors: [Color(UIColor.systemBackground)]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .modern:
-            return LinearGradient(
-                gradient: Gradient(colors: [Color.blue.opacity(0.1), Color(UIColor.systemBackground)]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .vintage:
-            return LinearGradient(
-                gradient: Gradient(colors: [Color.brown.opacity(0.1), Color.yellow.opacity(0.05)]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .colorful:
-            return LinearGradient(
-                gradient: Gradient(colors: [Color.purple.opacity(0.1), Color.pink.opacity(0.1), Color.blue.opacity(0.1)]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .minimal:
-            return LinearGradient(
-                gradient: Gradient(colors: [Color.white]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -345,7 +309,7 @@ struct EventDetailView: View {
                         .rotationEffect(.degrees(2))
                         
                         // 根据选择的框样式添加装饰元素
-                        if selectedFrameStyle != .minimal && !selectedFrameStyle.usesMaskOrFrame {
+                        if selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
                             // 装饰元素 - 左上角
                             if selectedFrameStyle.decorationSymbols.count > 0 {
                                 Image(systemName: selectedFrameStyle.decorationSymbols[0])
@@ -380,7 +344,7 @@ struct EventDetailView: View {
                         }
                         
                         // 装饰元素 - 顶部中间
-                        if event.type == .retirement && selectedFrameStyle != .minimal && !selectedFrameStyle.usesMaskOrFrame {
+                        if event.type == .retirement && selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
                             Image(systemName: "party.popper.fill")
                                 .foregroundColor(selectedFrameStyle.borderColor.opacity(0.8))
                                 .font(.system(size: 18))
@@ -388,7 +352,7 @@ struct EventDetailView: View {
                         }
                         
                         // 装饰元素 - 底部中间
-                        if selectedFrameStyle != .minimal && !selectedFrameStyle.usesMaskOrFrame {
+                        if selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
                             if event.isCountdown {
                                 Image(systemName: "hourglass")
                                     .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
@@ -403,7 +367,7 @@ struct EventDetailView: View {
                         }
                         
                         // 装饰线条 - 顶部
-                        if selectedFrameStyle != .minimal && !selectedFrameStyle.usesMaskOrFrame {
+                        if selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
                             Path { path in
                                 path.move(to: CGPoint(x: 45, y: 20))
                                 path.addLine(to: CGPoint(x: 225, y: 20))
@@ -412,7 +376,7 @@ struct EventDetailView: View {
                         }
                         
                         // 装饰线条 - 底部
-                        if selectedFrameStyle != .minimal && !selectedFrameStyle.usesMaskOrFrame {
+                        if selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
                             Path { path in
                                 path.move(to: CGPoint(x: 45, y: 330))
                                 path.addLine(to: CGPoint(x: 225, y: 330))
@@ -824,7 +788,7 @@ struct PhotoPreviewView: View {
                         )
                         
                         // 根据选择的框样式添加装饰元素
-                        if frameStyle != .minimal && !frameStyle.usesMaskOrFrame {
+                        if frameStyle != .template && !frameStyle.usesMaskOrFrame {
                             // 装饰元素 - 左上角
                             if frameStyle.decorationSymbols.count > 0 {
                                 Image(systemName: frameStyle.decorationSymbols[0])
@@ -1099,8 +1063,6 @@ struct FramePickerView: View {
 enum DecorationType: String, CaseIterable, Identifiable {
     case none = "无装饰"
     case polaroid = "拍立得"
-    case vintage = "复古"
-    case modern = "现代"
     
     var id: String { self.rawValue }
 }
