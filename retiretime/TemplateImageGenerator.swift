@@ -153,23 +153,9 @@ class TemplateImageGenerator {
         if let frameImage = UIImage(named: frameName) {
             print("加载相框图片: \(frameName), 尺寸: \(frameImage.size), 缩放: \(scale), 偏移: \(offset)")
             
-            // 创建一个与相框大小相同的上下文
-            UIGraphicsBeginImageContextWithOptions(frameImage.size, false, 0.0)
-            defer { UIGraphicsEndImageContext() }
-            
             // 计算照片在相框中的位置和大小
             let photoRect = calculatePhotoRect(frameSize: frameImage.size, frameName: frameName, offset: offset)
             print("照片区域: \(photoRect), 偏移量: \(offset)")
-            
-            // 绘制原始图片到相框中央的透明区域，保持原始比例
-            let context = UIGraphicsGetCurrentContext()
-            
-            // 保存当前图形状态
-            context?.saveGState()
-            
-            // 创建裁剪路径
-            let clipPath = UIBezierPath(rect: photoRect)
-            clipPath.addClip()
             
             // 计算保持原始图片比例的绘制区域
             let imageAspect = originalImage.size.width / originalImage.size.height
@@ -213,17 +199,84 @@ class TemplateImageGenerator {
                 )
             }
             
-            // 在裁剪区域内绘制图片，保持原始比例
-            originalImage.draw(in: drawRect, blendMode: .normal, alpha: 1.0)
+            // 使用UIGraphicsImageRenderer创建一个新的图像上下文
+            let renderer = UIGraphicsImageRenderer(size: frameImage.size)
             
-            // 恢复图形状态
-            context?.restoreGState()
-            
-            // 绘制相框覆盖在照片上
-            frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size), blendMode: .normal, alpha: 1.0)
-            
-            // 获取最终图片
-            return UIGraphicsGetImageFromCurrentImageContext()
+            return renderer.image { context in
+                // 创建一个临时上下文来获取相框的alpha数据
+                let width = Int(frameImage.size.width)
+                let height = Int(frameImage.size.height)
+                let bytesPerRow = width * 4
+                var pixelData = [UInt8](repeating: 0, count: width * height * 4)
+                
+                let colorSpace = CGColorSpaceCreateDeviceRGB()
+                guard let tempContext = CGContext(data: &pixelData,
+                                             width: width,
+                                             height: height,
+                                             bitsPerComponent: 8,
+                                             bytesPerRow: bytesPerRow,
+                                             space: colorSpace,
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+                      let frameImageCGImage = frameImage.cgImage else {
+                    // 如果无法创建上下文或获取CGImage，直接绘制相框和照片
+                    originalImage.draw(in: drawRect)
+                    frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size))
+                    return
+                }
+                
+                // 在临时上下文中绘制相框图像
+                tempContext.draw(frameImageCGImage, in: CGRect(origin: .zero, size: frameImage.size))
+                
+                // 第一步：先绘制照片，但只在相框透明区域显示
+                context.cgContext.saveGState()
+                
+                // 创建一个路径来表示alpha为0的区域（透明区域）
+                let clipPath = CGMutablePath()
+                
+                // 遍历每个像素，找出alpha为0的区域（完全透明的区域）
+                for y in 0..<height {
+                    for x in 0..<width {
+                        let pixelIndex = (width * y + x) * 4
+                        let alpha = pixelData[pixelIndex + 3] // Alpha通道值
+                        
+                        // 如果alpha为0，则将该像素添加到裁剪路径中
+                        if alpha == 0 {
+                            clipPath.addRect(CGRect(x: x, y: y, width: 1, height: 1))
+                        }
+                    }
+                }
+                
+                // 应用裁剪路径，这样只有在alpha为0的区域内才会显示照片
+                context.cgContext.addPath(clipPath)
+                context.cgContext.clip()
+                
+                // 在裁剪区域内绘制照片
+                originalImage.draw(in: drawRect)
+                
+                // 恢复图形状态
+                context.cgContext.restoreGState()
+                
+                // 第二步：绘制相框的不透明部分
+                for y in 0..<height {
+                    for x in 0..<width {
+                        let pixelIndex = (width * y + x) * 4
+                        let alpha = pixelData[pixelIndex + 3] // Alpha通道值
+                        
+                        // 如果alpha大于0，则在该位置绘制相框像素
+                        if alpha > 0 {
+                            // 获取相框像素的颜色
+                            let red = CGFloat(pixelData[pixelIndex]) / 255.0
+                            let green = CGFloat(pixelData[pixelIndex + 1]) / 255.0
+                            let blue = CGFloat(pixelData[pixelIndex + 2]) / 255.0
+                            let alphaValue = CGFloat(alpha) / 255.0
+                            
+                            // 在最终上下文中绘制该像素，使用源覆盖模式确保完全覆盖底层
+                            context.cgContext.setFillColor(red: red, green: green, blue: blue, alpha: alphaValue)
+                            context.cgContext.fill(CGRect(x: x, y: y, width: 1, height: 1))
+                        }
+                    }
+                }
+            }
         }
         
         // 如果没有预定义的相框图片，尝试从JSON生成
@@ -292,22 +345,23 @@ class TemplateImageGenerator {
             )
         }
         
-        // 在裁剪区域内绘制图片，保持原始比例
+        // 绘制原始图片
         originalImage.draw(in: drawRect)
         
-        // 绘制相框路径
-        let context = UIGraphicsGetCurrentContext()
+        // 绘制相框元素
+        let context = UIGraphicsGetCurrentContext()!
         
+        // 绘制路径
         for path in frameDescription.paths {
-            drawPath(path: path, in: context!, size: size)
+            drawPath(path: path, in: context, size: size)
         }
         
-        // 获取最终图片
+        // 返回最终图片
         return UIGraphicsGetImageFromCurrentImageContext()
     }
     
     // 加载JSON描述
-    private func loadFrameDescription(jsonName: String) -> FrameDescription? {
+    func loadFrameDescription(jsonName: String) -> FrameDescription? {
         guard let url = Bundle.main.url(forResource: jsonName, withExtension: "json") else {
             print("无法找到JSON文件: \(jsonName).json")
             return nil
@@ -324,7 +378,7 @@ class TemplateImageGenerator {
     }
     
     // 绘制路径
-    private func drawPath(path: PathDescription, in context: CGContext, size: CGSize) {
+    func drawPath(path: PathDescription, in context: CGContext, size: CGSize) {
         // 设置颜色
         let color = UIColor(hex: path.color) ?? .black
         context.setFillColor(color.cgColor)
@@ -381,16 +435,27 @@ class TemplateImageGenerator {
     }
     
     // 计算照片在相框中的位置和大小
-    private func calculatePhotoRect(frameSize: CGSize, frameName: String, offset: CGSize = .zero) -> CGRect {
+    func calculatePhotoRect(frameSize: CGSize, frameName: String, offset: CGSize = .zero) -> CGRect {
         // 根据不同的相框类型返回不同的照片区域
         var rect: CGRect
         
-        // 默认情况，照片区域略小于相框
-        let width = frameSize.width
-        let height = frameSize.height
-        let x = (frameSize.width - width) / 2
-        let y = (frameSize.height - height) / 2
-        rect = CGRect(x: x, y: y, width: width, height: height)
+        // 默认情况，照片区域明显小于相框，确保照片在相框内部
+        // 对于polaroid类型的相框，照片区域应该更小
+        if frameName.contains("polaroid") {
+            // Polaroid相框通常有较宽的白色边框，特别是底部
+            let width = frameSize.width * 0.85  // 照片宽度为相框宽度的85%
+            let height = frameSize.height * 0.75 // 照片高度为相框高度的75%
+            let x = (frameSize.width - width) / 2
+            let y = (frameSize.height - height) / 2 - frameSize.height * 0.05 // 向上偏移一点，因为底部边框更宽
+            rect = CGRect(x: x, y: y, width: width, height: height)
+        } else {
+            // 其他类型的相框，照片区域也应该小于相框
+            let width = frameSize.width * 0.9  // 照片宽度为相框宽度的90%
+            let height = frameSize.height * 0.9 // 照片高度为相框高度的90%
+            let x = (frameSize.width - width) / 2
+            let y = (frameSize.height - height) / 2
+            rect = CGRect(x: x, y: y, width: width, height: height)
+        }
         
         // 应用偏移量
         if offset != .zero {
@@ -402,7 +467,7 @@ class TemplateImageGenerator {
     }
     
     // 创建花朵路径
-    private func createFlowerPath(in size: CGSize) -> UIBezierPath? {
+    func createFlowerPath(in size: CGSize) -> UIBezierPath? {
         let path = UIBezierPath()
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let petalCount = 8
@@ -445,7 +510,7 @@ class TemplateImageGenerator {
     }
     
     // 创建心形路径
-    private func createHeartPath(in size: CGSize) -> UIBezierPath? {
+    func createHeartPath(in size: CGSize) -> UIBezierPath? {
         let path = UIBezierPath()
         let width = size.width
         let height = size.height
@@ -489,7 +554,7 @@ class TemplateImageGenerator {
     }
     
     // 创建星形路径
-    private func createStarPath(in size: CGSize) -> UIBezierPath? {
+    func createStarPath(in size: CGSize) -> UIBezierPath? {
         let path = UIBezierPath()
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let pointCount = 5
@@ -588,7 +653,7 @@ class TemplateImageGenerator {
     }
     
     // 绘制SF Symbol
-    private func drawSymbol(_ symbolName: String, at point: CGPoint, size: CGFloat, color: UIColor) {
+    func drawSymbol(_ symbolName: String, at point: CGPoint, size: CGFloat, color: UIColor) {
         guard let symbolConfig = UIImage(systemName: symbolName)?.withTintColor(color, renderingMode: .alwaysOriginal) else {
             return
         }
