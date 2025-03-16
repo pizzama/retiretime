@@ -220,6 +220,13 @@ public struct Event: Identifiable, Codable {
     }
 }
 
+// 实现Equatable协议
+extension Event: Equatable {
+    public static func == (lhs: Event, rhs: Event) -> Bool {
+        return lhs.id == rhs.id
+    }
+}
+
 // 用于编码Color的辅助结构体
 public struct CodableColor: Codable {
     public let red: Double

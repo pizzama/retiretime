@@ -12,6 +12,24 @@ struct EventListView: View {
     @State private var selectedCategory = "全部"
     @State private var showingAddEvent = false
     
+    // 缓存变量
+    @State private var filteredEventsCache: [String: [Event]] = [:]
+    @State private var categoriesWithEventsCache: [String: [String]] = [:]
+    @State private var imageCache: [String: UIImage] = [:]
+    @State private var processedImageCache: [String: UIImage] = [:]
+    
+    // 清除所有缓存
+    private func clearCaches() {
+        // 清除事件数据缓存
+        filteredEventsCache = [:]
+        categoriesWithEventsCache = [:]
+        
+        // 保留图片缓存，因为图片不会频繁变化
+        // 如果内存压力大，可以考虑也清除图片缓存
+        // imageCache = [:]
+        // processedImageCache = [:]
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -35,6 +53,14 @@ struct EventListView: View {
             )
             .sheet(isPresented: $showingAddEvent) {
                 EventFormView(eventStore: eventStore)
+            }
+            .onAppear {
+                // 当视图出现时预加载数据
+                preloadData()
+            }
+            .onChange(of: eventStore.events) { _ in
+                // 当事件数据变化时清除缓存
+                clearCaches()
             }
         }
     }
@@ -154,8 +180,8 @@ struct EventListView: View {
                     // 当选择"全部"时，显示所有事件在一个网格中
                     allEventsGrid
                 } else {
-                    // 获取分类
-                    let categories = eventStore.categoriesWithEvents(filter: selectedCategory)
+                    // 获取分类（使用缓存）
+                    let categories = getCategoriesWithEvents(filter: selectedCategory)
                     
                     // 遍历分类
                     ForEach(categories, id: \.self) { category in
@@ -168,10 +194,67 @@ struct EventListView: View {
         }
     }
     
+    // 获取包含事件的分类（带缓存）
+    private func getCategoriesWithEvents(filter category: String) -> [String] {
+        // 检查缓存
+        if let cachedCategories = categoriesWithEventsCache[category] {
+            return cachedCategories
+        }
+        
+        // 如果缓存中没有，则从eventStore获取
+        let categories = eventStore.categoriesWithEvents(filter: category)
+        
+        // 更新缓存
+        var updatedCache = categoriesWithEventsCache
+        updatedCache[category] = categories
+        categoriesWithEventsCache = updatedCache
+        
+        return categories
+    }
+
+// 获取过滤后的事件（带缓存）
+private func getFilteredEvents(by category: String) -> [Event] {
+    // 检查缓存
+    if let cachedEvents = filteredEventsCache[category] {
+        return cachedEvents
+    }
+    
+    // 如果缓存中没有，则从eventStore获取
+    let events = eventStore.filteredEvents(by: category)
+    
+    // 更新缓存
+    var updatedCache = filteredEventsCache
+    updatedCache[category] = events
+    filteredEventsCache = updatedCache
+    
+    return events
+}
+
+// 获取分类中的事件（带缓存）
+private func getEventsInCategory(_ category: String, filter filterCategory: String) -> [Event] {
+    // 创建缓存键
+    let cacheKey = "\(category)_\(filterCategory)"
+    
+    // 检查缓存
+    if let cachedEvents = filteredEventsCache[cacheKey] {
+        return cachedEvents
+    }
+    
+    // 如果缓存中没有，则从eventStore获取
+    let events = eventStore.eventsInCategory(category, filter: filterCategory)
+    
+    // 更新缓存
+    var updatedCache = filteredEventsCache
+    updatedCache[cacheKey] = events
+    filteredEventsCache = updatedCache
+    
+    return events
+}
+    
     // 所有事件的网格视图
     private var allEventsGrid: some View {
-        // 获取所有事件（当选择"全部"分类时）
-        let allEvents = eventStore.filteredEvents(by: selectedCategory)
+        // 获取所有事件（当选择"全部"分类时，使用缓存）
+        let allEvents = getFilteredEvents(by: selectedCategory)
         
         return VStack(alignment: .leading) {
             LazyVGrid(columns: [
@@ -192,8 +275,8 @@ struct EventListView: View {
     
     // 事件网格视图
     private func eventGrid(for category: String) -> some View {
-        // 获取该分类下的事件
-        let events = eventStore.eventsInCategory(category, filter: selectedCategory)
+        // 获取该分类下的事件（使用缓存）
+        let events = getEventsInCategory(category, filter: selectedCategory)
         
         return VStack(alignment: .leading) {
             LazyVGrid(columns: [
@@ -217,32 +300,29 @@ struct EventListView: View {
         VStack(alignment: .leading) {
             // 图片部分
             ZStack {
-                if let imageName = event.imageName, !imageName.isEmpty,
-                   let image = loadImageFromDocumentDirectory(named: imageName) {
-                    
-                    // 如果有相框样式
-                    if let frameStyleName = event.frameStyleName,
-                       let frameStyle = FrameStyle(rawValue: frameStyleName),
-                       frameStyle.usesMaskOrFrame,
-                       let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
-                           originalImage: image,
-                           frameStyle: frameStyle,
-                           scale: event.imageScale,
-                           offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
-                       ) {
+                if let imageName = event.imageName, !imageName.isEmpty {
+                    // 尝试从缓存加载图片
+                    if let processedImage = getProcessedImage(for: event) {
                         Image(uiImage: processedImage)
                             .resizable()
                             .scaledToFit()
                             .frame(width: 100, height: 100)
                     } else {
-                        // 使用普通样式
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .scaleEffect(event.imageScale)
-                            .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
-                            .frame(width: 100, height: 100)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        // 显示默认图标背景（加载中）
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(width: 100, height: 100)
+                            
+                            Image(systemName: "photo")
+                                .font(.system(size: 30))
+                                .foregroundColor(.gray)
+                        }
+                        .frame(width: 100, height: 100)
+                        .onAppear {
+                            // 异步加载图片
+                            loadAndCacheImage(named: imageName, for: event)
+                        }
                     }
                 } else {
                     // 显示默认图标背景
@@ -283,6 +363,84 @@ struct EventListView: View {
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
     
+    // 获取处理后的图片（从缓存或生成）
+    private func getProcessedImage(for event: Event) -> UIImage? {
+        guard let imageName = event.imageName else { return nil }
+        
+        // 创建缓存键，包含所有可能影响图片处理的参数
+        let cacheKey = "\(imageName)_\(event.frameStyleName ?? "")_\(event.imageScale)_\(event.imageOffsetX)_\(event.imageOffsetY)"
+        
+        // 检查处理后的图片缓存
+        if let cachedImage = processedImageCache[cacheKey] {
+            return cachedImage
+        }
+        
+        // 检查原始图片缓存
+        guard let originalImage = imageCache[imageName] ?? loadImageFromDocumentDirectory(named: imageName) else {
+            return nil
+        }
+        
+        // 如果找到原始图片，缓存它
+        if imageCache[imageName] == nil {
+            var updatedImageCache = imageCache
+            updatedImageCache[imageName] = originalImage
+            imageCache = updatedImageCache
+        }
+        
+        // 处理图片
+        var processedImage: UIImage? = nil
+        
+        if let frameStyleName = event.frameStyleName,
+           let frameStyle = FrameStyle(rawValue: frameStyleName),
+           frameStyle.usesMaskOrFrame {
+            // 使用模板生成器处理图片
+            processedImage = TemplateImageGenerator.shared.generateTemplateImage(
+                originalImage: originalImage,
+                frameStyle: frameStyle,
+                scale: event.imageScale,
+                offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
+            )
+        } else {
+            // 简单缩放和偏移处理
+            processedImage = originalImage
+        }
+        
+        // 缓存处理后的图片
+        if let processedImage = processedImage {
+            var updatedProcessedImageCache = processedImageCache
+            updatedProcessedImageCache[cacheKey] = processedImage
+            processedImageCache = updatedProcessedImageCache
+        }
+        
+        return processedImage
+    }
+    
+    // 异步加载并缓存图片
+    private func loadAndCacheImage(named imageName: String, for event: Event) {
+        // 检查是否已经在缓存中
+        if imageCache[imageName] != nil {
+            // 如果原始图片已缓存，尝试生成处理后的图片
+            _ = getProcessedImage(for: event)
+            return
+        }
+        
+        // 在后台线程加载图片
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let image = loadImageFromDocumentDirectory(named: imageName) {
+                // 在主线程更新缓存
+                DispatchQueue.main.async {
+                    // 缓存原始图片
+                    var updatedImageCache = self.imageCache
+                    updatedImageCache[imageName] = image
+                    self.imageCache = updatedImageCache
+                    
+                    // 生成并缓存处理后的图片
+                    _ = self.getProcessedImage(for: event)
+                }
+            }
+        }
+    }
+    
     // 从文档目录加载图片
     private func loadImageFromDocumentDirectory(named: String) -> UIImage? {
         guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
@@ -297,6 +455,19 @@ struct EventListView: View {
         } catch {
             print("加载图片失败: \(error)")
             return nil
+        }
+    }
+    
+    // 预加载数据
+    private func preloadData() {
+        // 预加载所有分类的事件数据
+        _ = getFilteredEvents(by: "全部")
+        
+        // 预加载所有分类
+        let allCategories = eventStore.categories
+        for category in allCategories {
+            _ = getCategoriesWithEvents(filter: category)
+            _ = getFilteredEvents(by: category)
         }
     }
 }
