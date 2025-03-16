@@ -10,8 +10,7 @@ import PhotosUI
 
 // 定义头像框样式枚举
 enum FrameStyle: String, CaseIterable, Identifiable {
-    case classic = "经典"
-    case template = "模板"
+    case template = "无"
     case mask = "蒙版"
     case imageFrame = "相框"
     case circleFrame = "圆形"
@@ -24,7 +23,6 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     // 返回对应的边框颜色
     var borderColor: Color {
         switch self {
-        case .classic: return .gray
         case .template: return .green
         case .mask: return .orange
         case .imageFrame: return .pink
@@ -38,7 +36,6 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     // 返回对应的装饰元素
     var decorationSymbols: [String] {
         switch self {
-        case .classic: return ["star.fill", "heart.fill", "moon.stars.fill", "leaf.fill"]
         case .template: return ["sparkles", "wand.and.stars", "gift", "party.popper"]
         case .mask: return ["person.crop.circle", "person.crop.square", "heart", "star"]
         case .imageFrame: return ["photo.on.rectangle", "photo.artframe", "photo.stack", "photo.tv"]
@@ -52,12 +49,6 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     // 返回对应的背景渐变色
     func backgroundGradient() -> LinearGradient {
         switch self {
-        case .classic:
-            return LinearGradient(
-                gradient: Gradient(colors: [Color(UIColor.systemBackground)]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
         case .template:
             return LinearGradient(
                 gradient: Gradient(colors: [Color.green.opacity(0.1), Color.blue.opacity(0.05)]),
