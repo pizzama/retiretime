@@ -233,7 +233,7 @@ struct EventListView: View {
                         Image(uiImage: processedImage)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 120, height: 120)
+                            .frame(width: 100, height: 100)
                     } else {
                         // 使用普通样式
                         Image(uiImage: image)
@@ -246,16 +246,19 @@ struct EventListView: View {
                     }
                 } else {
                     // 显示默认图标背景
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.clear)
-                        .frame(width: 120, height: 120)
-                    
-                    Image(systemName: event.type.icon)
-                        .font(.system(size: 40))
-                        .foregroundColor(event.type.color)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.clear)
+                            .frame(width: 100, height: 100)
+                        
+                        Image(systemName: event.type.icon)
+                            .font(.system(size: 40))
+                            .foregroundColor(event.type.color)
+                    }
+                    .frame(width: 100, height: 100)
                 }
             }
-            .frame(width: 120, height: 120)
+            .frame(width: 100, height: 100)
             .padding(.bottom, 8)
             
             // 事件信息
@@ -275,7 +278,7 @@ struct EventListView: View {
                 .foregroundColor(.gray)
                 .padding(.horizontal, 4)
         }
-        .frame(width: 120, height: 200)
+        .frame(width: 100, height: 200)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
