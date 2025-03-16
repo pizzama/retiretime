@@ -37,20 +37,20 @@ class TemplateImageGenerator {
     
     // 生成模板图像，支持缩放和偏移
     func generateTemplateImage(originalImage: UIImage, frameStyle: FrameStyle, scale: CGFloat = 1.0, offset: CGSize = .zero) -> UIImage? {
-        // 应用缩放和偏移到原始图像
-        let adjustedImage = applyScaleAndOffset(to: originalImage, scale: scale, offset: offset)
-        
         // 根据框架样式选择处理方法
         if let maskName = frameStyle.maskImageName {
             if maskName.contains("frame") {
-                return generateFramedImage(originalImage: adjustedImage, frameName: maskName)
+                // 对于相框类型，直接传递缩放和偏移参数
+                return generateFramedImage(originalImage: originalImage, frameName: maskName, scale: scale, offset: offset)
             } else {
+                // 对于蒙版类型，先应用缩放和偏移
+                let adjustedImage = applyScaleAndOffset(to: originalImage, scale: scale, offset: offset)
                 return generateMaskedImage(originalImage: adjustedImage, maskName: maskName)
             }
         }
         
-        // 如果没有特殊处理，返回调整后的原始图像
-        return adjustedImage
+        // 如果没有特殊处理，应用缩放和偏移后返回
+        return applyScaleAndOffset(to: originalImage, scale: scale, offset: offset)
     }
     
     // 原有的 generateTemplateImage 方法，保持向后兼容
@@ -148,68 +148,90 @@ class TemplateImageGenerator {
     }
     
     // 使用相框生成图片
-    func generateFramedImage(originalImage: UIImage, frameName: String) -> UIImage? {
+    func generateFramedImage(originalImage: UIImage, frameName: String, scale: CGFloat = 1.0, offset: CGSize = .zero) -> UIImage? {
         // 首先尝试加载预定义的相框图片
         if let frameImage = UIImage(named: frameName) {
-            print("加载相框图片: \(frameName), 尺寸: \(frameImage.size)")
+            print("加载相框图片: \(frameName), 尺寸: \(frameImage.size), 缩放: \(scale), 偏移: \(offset)")
             
             // 创建一个与相框大小相同的上下文
             UIGraphicsBeginImageContextWithOptions(frameImage.size, false, 0.0)
             defer { UIGraphicsEndImageContext() }
             
             // 计算照片在相框中的位置和大小
-            let photoRect = calculatePhotoRect(frameSize: frameImage.size, frameName: frameName)
-            print("照片区域: \(photoRect)")
+            let photoRect = calculatePhotoRect(frameSize: frameImage.size, frameName: frameName, offset: offset)
+            print("照片区域: \(photoRect), 偏移量: \(offset)")
             
-            // 为特殊形状创建路径
-            if frameName == "flower_frame" || frameName == "mask_heart" || frameName == "mask_star" {
-                print("开始处理特殊形状相框: \(frameName)")
-                
-                // 对于花朵框架，确保显示整个框架
-                if frameName == "flower_frame" {
-                    // 首先绘制照片到计算好的区域（不裁剪）
-                    originalImage.draw(in: photoRect, blendMode: .normal, alpha: 1.0)
-                    
-                    // 然后以原始尺寸叠加相框
-                    let frameRect = CGRect(origin: .zero, size: frameImage.size)
-                    frameImage.draw(in: frameRect, blendMode: .normal, alpha: 1.0)
-                    
-                    // 获取最终结果
-                    let finalImage = UIGraphicsGetImageFromCurrentImageContext()
-                    print("花朵相框处理完成")
-                    return finalImage
-                } else {
-                    // 其他特殊形状的处理
-                    // 首先绘制照片到整个区域（不裁剪）
-                    originalImage.draw(in: photoRect, blendMode: .normal, alpha: 1.0)
-                    
-                    // 然后叠加相框
-                    frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size), blendMode: .normal, alpha: 1.0)
-                    
-                    // 获取最终结果
-                    let finalImage = UIGraphicsGetImageFromCurrentImageContext()
-                    print("特殊形状相框处理完成")
-                    return finalImage
-                }
-            } else {
-                // 普通相框处理
-                // 绘制原始图片到相框中央的透明区域
-                originalImage.draw(in: photoRect, blendMode: .normal, alpha: 1.0)
-                
-                // 绘制相框覆盖在照片上
-                frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size), blendMode: .normal, alpha: 1.0)
-                
-                // 获取最终图片
-                return UIGraphicsGetImageFromCurrentImageContext()
+            // 绘制原始图片到相框中央的透明区域，保持原始比例
+            let context = UIGraphicsGetCurrentContext()
+            
+            // 保存当前图形状态
+            context?.saveGState()
+            
+            // 创建裁剪路径
+            let clipPath = UIBezierPath(rect: photoRect)
+            clipPath.addClip()
+            
+            // 计算保持原始图片比例的绘制区域
+            let imageAspect = originalImage.size.width / originalImage.size.height
+            let rectAspect = photoRect.width / photoRect.height
+            
+            var drawRect = photoRect
+            
+            if imageAspect > rectAspect {
+                // 图片比相框区域更宽，以高度为基准
+                let newWidth = photoRect.height * imageAspect
+                drawRect = CGRect(
+                    x: photoRect.midX - newWidth / 2,
+                    y: photoRect.origin.y,
+                    width: newWidth,
+                    height: photoRect.height
+                )
+            } else if imageAspect < rectAspect {
+                // 图片比相框区域更高，以宽度为基准
+                let newHeight = photoRect.width / imageAspect
+                drawRect = CGRect(
+                    x: photoRect.origin.x,
+                    y: photoRect.midY - newHeight / 2,
+                    width: photoRect.width,
+                    height: newHeight
+                )
             }
+            
+            // 应用用户设置的缩放和偏移
+            if scale != 1.0 || offset != .zero {
+                // 计算缩放后的绘制区域
+                let scaledWidth = drawRect.width * scale
+                let scaledHeight = drawRect.height * scale
+                let scaledX = drawRect.midX - scaledWidth / 2 + offset.width
+                let scaledY = drawRect.midY - scaledHeight / 2 + offset.height
+                
+                drawRect = CGRect(
+                    x: scaledX,
+                    y: scaledY,
+                    width: scaledWidth,
+                    height: scaledHeight
+                )
+            }
+            
+            // 在裁剪区域内绘制图片，保持原始比例
+            originalImage.draw(in: drawRect, blendMode: .normal, alpha: 1.0)
+            
+            // 恢复图形状态
+            context?.restoreGState()
+            
+            // 绘制相框覆盖在照片上
+            frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size), blendMode: .normal, alpha: 1.0)
+            
+            // 获取最终图片
+            return UIGraphicsGetImageFromCurrentImageContext()
         }
         
         // 如果没有预定义的相框图片，尝试从JSON生成
-        return generateFrameFromJSON(originalImage: originalImage, jsonName: frameName)
+        return generateFrameFromJSON(originalImage: originalImage, jsonName: frameName, scale: scale, offset: offset)
     }
     
     // 从JSON生成相框图片
-    private func generateFrameFromJSON(originalImage: UIImage, jsonName: String) -> UIImage? {
+    private func generateFrameFromJSON(originalImage: UIImage, jsonName: String, scale: CGFloat = 1.0, offset: CGSize = .zero) -> UIImage? {
         guard let frameDescription = loadFrameDescription(jsonName: jsonName) else {
             return nil
         }
@@ -219,7 +241,7 @@ class TemplateImageGenerator {
         UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
         defer { UIGraphicsEndImageContext() }
         
-        // 绘制原始图片到中央
+        // 绘制原始图片到中央，保持原始比例
         let photoSize = CGSize(width: size.width * 0.6, height: size.height * 0.6)
         let photoRect = CGRect(
             x: (size.width - photoSize.width) / 2,
@@ -227,7 +249,51 @@ class TemplateImageGenerator {
             width: photoSize.width,
             height: photoSize.height
         )
-        originalImage.draw(in: photoRect)
+        
+        // 计算保持原始图片比例的绘制区域
+        let imageAspect = originalImage.size.width / originalImage.size.height
+        let rectAspect = photoRect.width / photoRect.height
+        
+        var drawRect = photoRect
+        
+        if imageAspect > rectAspect {
+            // 图片比相框区域更宽，以高度为基准
+            let newWidth = photoRect.height * imageAspect
+            drawRect = CGRect(
+                x: photoRect.midX - newWidth / 2,
+                y: photoRect.origin.y,
+                width: newWidth,
+                height: photoRect.height
+            )
+        } else if imageAspect < rectAspect {
+            // 图片比相框区域更高，以宽度为基准
+            let newHeight = photoRect.width / imageAspect
+            drawRect = CGRect(
+                x: photoRect.origin.x,
+                y: photoRect.midY - newHeight / 2,
+                width: photoRect.width,
+                height: newHeight
+            )
+        }
+        
+        // 应用用户设置的缩放和偏移
+        if scale != 1.0 || offset != .zero {
+            // 计算缩放后的绘制区域
+            let scaledWidth = drawRect.width * scale
+            let scaledHeight = drawRect.height * scale
+            let scaledX = drawRect.midX - scaledWidth / 2 + offset.width
+            let scaledY = drawRect.midY - scaledHeight / 2 + offset.height
+            
+            drawRect = CGRect(
+                x: scaledX,
+                y: scaledY,
+                width: scaledWidth,
+                height: scaledHeight
+            )
+        }
+        
+        // 在裁剪区域内绘制图片，保持原始比例
+        originalImage.draw(in: drawRect)
         
         // 绘制相框路径
         let context = UIGraphicsGetCurrentContext()
@@ -315,54 +381,24 @@ class TemplateImageGenerator {
     }
     
     // 计算照片在相框中的位置和大小
-    private func calculatePhotoRect(frameSize: CGSize, frameName: String) -> CGRect {
+    private func calculatePhotoRect(frameSize: CGSize, frameName: String, offset: CGSize = .zero) -> CGRect {
         // 根据不同的相框类型返回不同的照片区域
-        switch frameName {
-        case "flower_frame":
-            // 花朵相框中间的空白区域
-            let diameter = min(frameSize.width, frameSize.height) * 0.6  // 调整为原来的0.6倍，让照片更小一些
-            let x = (frameSize.width - diameter) / 2
-            let y = (frameSize.height - diameter) / 2 + frameSize.height * 0.02  // 稍微向下偏移一点
-            return CGRect(x: x, y: y, width: diameter, height: diameter)
-            
-        case "mask_heart":
-            // 心形相框，照片区域为中央的心形
-            let diameter = min(frameSize.width, frameSize.height) * 0.7
-            let x = (frameSize.width - diameter) / 2
-            let y = (frameSize.height - diameter) / 2
-            return CGRect(x: x, y: y, width: diameter, height: diameter)
-            
-        case "mask_star":
-            // 星形相框，照片区域为中央的星形
-            let diameter = min(frameSize.width, frameSize.height) * 0.7
-            let x = (frameSize.width - diameter) / 2
-            let y = (frameSize.height - diameter) / 2
-            return CGRect(x: x, y: y, width: diameter, height: diameter)
-            
-        case "frame_polaroid":
-            // 拍立得相框，照片区域略小于相框，且位于上部
-            let width = frameSize.width * 0.85
-            let height = frameSize.height * 0.7
-            let x = (frameSize.width - width) / 2
-            let y = frameSize.height * 0.1
-            return CGRect(x: x, y: y, width: width, height: height)
-            
-        case "frame_wooden":
-            // 木质相框，照片区域略小于相框
-            let width = frameSize.width * 0.8
-            let height = frameSize.height * 0.8
-            let x = (frameSize.width - width) / 2
-            let y = (frameSize.height - height) / 2
-            return CGRect(x: x, y: y, width: width, height: height)
-            
-        default:
-            // 默认情况，照片区域略小于相框
-            let width = frameSize.width * 0.88
-            let height = frameSize.height * 0.88
-            let x = (frameSize.width - width) / 2
-            let y = (frameSize.height - height) / 2
-            return CGRect(x: x, y: y, width: width, height: height)
+        var rect: CGRect
+        
+        // 默认情况，照片区域略小于相框
+        let width = frameSize.width
+        let height = frameSize.height
+        let x = (frameSize.width - width) / 2
+        let y = (frameSize.height - height) / 2
+        rect = CGRect(x: x, y: y, width: width, height: height)
+        
+        // 应用偏移量
+        if offset != .zero {
+            rect.origin.x += offset.width
+            rect.origin.y += offset.height
         }
+        
+        return rect
     }
     
     // 创建花朵路径
@@ -587,4 +623,4 @@ extension UIColor {
         
         self.init(red: red, green: green, blue: blue, alpha: 1.0)
     }
-} 
+}
