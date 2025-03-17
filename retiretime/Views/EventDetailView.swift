@@ -1003,41 +1003,109 @@ struct FramePickerView: View {
                         updatedEvent.frameStyleName = style.rawValue
                         try? eventStore.updateEvent(updatedEvent)
                         
+                        // 发送通知，通知EventListView刷新图片缓存
+                        NotificationCenter.default.post(
+                            name: Notification.Name("RefreshImageCache"),
+                            object: nil,
+                            userInfo: ["eventId": event.id]
+                        )
+                        
+                        print("已发送刷新图片缓存通知，事件ID: \(event.id)，相框样式: \(style.rawValue)")
+                        
                         presentationMode.wrappedValue.dismiss()
                     }) {
                         HStack {
                             // 预览框
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(style.backgroundGradient())
-                                .frame(width: 60, height: 60)
-                                .overlay(
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(style.backgroundGradient())
+                                    .frame(width: 60, height: 60)
+                                
+                                // 如果是蒙版或相框样式，显示实际相框图片
+                                if style.usesMaskOrFrame, let frameName = style.maskImageName {
+                                    // 添加示例照片背景
                                     ZStack {
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(style.borderColor.opacity(0.5), lineWidth: 2)
+                                        // 示例照片背景（灰色矩形）
+                                        Rectangle()
+                                            .fill(Color.gray.opacity(0.3))
+                                            .frame(width: 40, height: 40)
+                                            .overlay(
+                                                Image(systemName: "person.fill")
+                                                    .font(.system(size: 20))
+                                                    .foregroundColor(.white.opacity(0.7))
+                                            )
                                         
-                                        // 如果是蒙版或相框样式，显示预览图标
-                                        if style.usesMaskOrFrame {
-                                            Image(systemName: "photo")
-                                                .resizable()
-                                                .scaledToFit()
-                                                .frame(width: 30, height: 30)
-                                                .foregroundColor(style.borderColor)
-                                        }
+                                        // 相框图片
+                                        Image(frameName)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 50, height: 50)
                                     }
-                                )
+                                } else {
+                                    // 对于无相框样式，显示装饰元素
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(style.borderColor.opacity(0.5), lineWidth: 2)
+                                        .frame(width: 60, height: 60)
+                                    
+                                    // 显示装饰元素
+                                    if style.decorationSymbols.count > 0 {
+                                        Image(systemName: style.decorationSymbols[0])
+                                            .font(.system(size: 20))
+                                            .foregroundColor(style.borderColor)
+                                            .position(x: 20, y: 20)
+                                    }
+                                    
+                                    if style.decorationSymbols.count > 1 {
+                                        Image(systemName: style.decorationSymbols[1])
+                                            .font(.system(size: 16))
+                                            .foregroundColor(style.borderColor.opacity(0.7))
+                                            .position(x: 40, y: 20)
+                                    }
+                                    
+                                    if style.decorationSymbols.count > 2 {
+                                        Image(systemName: style.decorationSymbols[2])
+                                            .font(.system(size: 16))
+                                            .foregroundColor(style.borderColor.opacity(0.8))
+                                            .position(x: 40, y: 40)
+                                    }
+                                    
+                                    if style.decorationSymbols.count > 3 {
+                                        Image(systemName: style.decorationSymbols[3])
+                                            .font(.system(size: 16))
+                                            .foregroundColor(style.borderColor.opacity(0.6))
+                                            .position(x: 20, y: 40)
+                                    }
+                                }
+                            }
+                            .frame(width: 60, height: 60)
+                            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
                             
-                            Text(style.rawValue)
-                                .font(.headline)
-                                .padding(.leading, 10)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(style.rawValue)
+                                    .font(.system(size: 16, weight: .medium))
+                                
+                                // 添加简短描述
+                                Text(style.usesMaskOrFrame ? "相框样式" : "装饰样式")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.leading, 10)
                             
                             Spacer()
                             
                             if selectedFrameStyle == style {
-                                Image(systemName: "checkmark")
+                                Image(systemName: "checkmark.circle.fill")
                                     .foregroundColor(.blue)
+                                    .font(.system(size: 22))
                             }
                         }
                         .padding(.vertical, 8)
+                        .background(
+                            selectedFrameStyle == style ?
+                                RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.blue.opacity(0.1))
+                                : nil
+                        )
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
