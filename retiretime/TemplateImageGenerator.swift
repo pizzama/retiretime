@@ -33,24 +33,84 @@ struct PointDescription: Codable {
 class TemplateImageGenerator {
     static let shared = TemplateImageGenerator()
     
+    // 添加缓存
+    private var imageCache: [String: UIImage] = [:]
+    private let cacheQueue = DispatchQueue(label: "com.retiretime.imageCacheQueue", attributes: .concurrent)
+    
     private init() {}
     
     // 生成模板图像，支持缩放和偏移
     func generateTemplateImage(originalImage: UIImage, frameStyle: FrameStyle, scale: CGFloat = 1.0, offset: CGSize = .zero) -> UIImage? {
+        // 创建缓存键
+        let cacheKey = createCacheKey(originalImage: originalImage, frameStyle: frameStyle, scale: scale, offset: offset)
+        
+        // 检查缓存
+        if let cachedImage = getCachedImage(for: cacheKey) {
+            return cachedImage
+        }
+        
         // 根据框架样式选择处理方法
+        var resultImage: UIImage?
+        
         if let maskName = frameStyle.maskImageName {
             if maskName.contains("frame") {
                 // 对于相框类型，直接传递缩放和偏移参数
-                return generateFramedImage(originalImage: originalImage, frameName: maskName, scale: scale, offset: offset)
+                resultImage = generateFramedImage(originalImage: originalImage, frameName: maskName, scale: scale, offset: offset)
             } else {
                 // 对于蒙版类型，先应用缩放和偏移
                 let adjustedImage = applyScaleAndOffset(to: originalImage, scale: scale, offset: offset)
-                return generateMaskedImage(originalImage: adjustedImage, maskName: maskName)
+                resultImage = generateMaskedImage(originalImage: adjustedImage, maskName: maskName)
             }
+        } else {
+            // 如果没有特殊处理，应用缩放和偏移后返回
+            resultImage = applyScaleAndOffset(to: originalImage, scale: scale, offset: offset)
         }
         
-        // 如果没有特殊处理，应用缩放和偏移后返回
-        return applyScaleAndOffset(to: originalImage, scale: scale, offset: offset)
+        // 缓存结果
+        if let resultImage = resultImage {
+            cacheImage(resultImage, for: cacheKey)
+        }
+        
+        return resultImage
+    }
+    
+    // 创建缓存键
+    private func createCacheKey(originalImage: UIImage, frameStyle: FrameStyle, scale: CGFloat, offset: CGSize) -> String {
+        // 使用图片的内存地址、尺寸、帧样式、缩放和偏移创建唯一键
+        let imagePointer = Unmanaged.passUnretained(originalImage).toOpaque()
+        return "\(imagePointer)_\(originalImage.size.width)x\(originalImage.size.height)_\(frameStyle.rawValue)_\(scale)_\(offset.width)x\(offset.height)"
+    }
+    
+    // 获取缓存的图片
+    private func getCachedImage(for key: String) -> UIImage? {
+        var cachedImage: UIImage?
+        cacheQueue.sync {
+            cachedImage = imageCache[key]
+        }
+        return cachedImage
+    }
+    
+    // 缓存图片
+    private func cacheImage(_ image: UIImage, for key: String) {
+        cacheQueue.async(flags: .barrier) {
+            self.imageCache[key] = image
+            
+            // 如果缓存太大，清理一些旧条目
+            if self.imageCache.count > 50 {
+                // 简单策略：移除一半的缓存
+                let keysToRemove = Array(self.imageCache.keys).prefix(self.imageCache.count / 2)
+                for key in keysToRemove {
+                    self.imageCache.removeValue(forKey: key)
+                }
+            }
+        }
+    }
+    
+    // 清除缓存
+    func clearCache() {
+        cacheQueue.async(flags: .barrier) {
+            self.imageCache.removeAll()
+        }
     }
     
     // 原有的 generateTemplateImage 方法，保持向后兼容
@@ -151,11 +211,8 @@ class TemplateImageGenerator {
     func generateFramedImage(originalImage: UIImage, frameName: String, scale: CGFloat = 1.0, offset: CGSize = .zero) -> UIImage? {
         // 首先尝试加载预定义的相框图片
         if let frameImage = UIImage(named: frameName) {
-            print("加载相框图片: \(frameName), 尺寸: \(frameImage.size), 缩放: \(scale), 偏移: \(offset)")
-            
             // 计算照片在相框中的位置和大小
             let photoRect = calculatePhotoRect(frameSize: frameImage.size, frameName: frameName, offset: offset)
-            print("照片区域: \(photoRect), 偏移量: \(offset)")
             
             // 计算保持原始图片比例的绘制区域
             let imageAspect = originalImage.size.width / originalImage.size.height
@@ -203,79 +260,14 @@ class TemplateImageGenerator {
             let renderer = UIGraphicsImageRenderer(size: frameImage.size)
             
             return renderer.image { context in
-                // 创建一个临时上下文来获取相框的alpha数据
-                let width = Int(frameImage.size.width)
-                let height = Int(frameImage.size.height)
-                let bytesPerRow = width * 4
-                var pixelData = [UInt8](repeating: 0, count: width * height * 4)
+                // 优化：使用更高效的绘制方法
                 
-                let colorSpace = CGColorSpaceCreateDeviceRGB()
-                guard let tempContext = CGContext(data: &pixelData,
-                                             width: width,
-                                             height: height,
-                                             bitsPerComponent: 8,
-                                             bytesPerRow: bytesPerRow,
-                                             space: colorSpace,
-                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
-                      let frameImageCGImage = frameImage.cgImage else {
-                    // 如果无法创建上下文或获取CGImage，直接绘制相框和照片
-                    originalImage.draw(in: drawRect)
-                    frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size))
-                    return
-                }
-                
-                // 在临时上下文中绘制相框图像
-                tempContext.draw(frameImageCGImage, in: CGRect(origin: .zero, size: frameImage.size))
-                
-                // 第一步：先绘制照片，但只在相框透明区域显示
-                context.cgContext.saveGState()
-                
-                // 创建一个路径来表示alpha为0的区域（透明区域）
-                let clipPath = CGMutablePath()
-                
-                // 遍历每个像素，找出alpha为0的区域（完全透明的区域）
-                for y in 0..<height {
-                    for x in 0..<width {
-                        let pixelIndex = (width * y + x) * 4
-                        let alpha = pixelData[pixelIndex + 3] // Alpha通道值
-                        
-                        // 如果alpha为0，则将该像素添加到裁剪路径中
-                        if alpha == 0 {
-                            clipPath.addRect(CGRect(x: x, y: y, width: 1, height: 1))
-                        }
-                    }
-                }
-                
-                // 应用裁剪路径，这样只有在alpha为0的区域内才会显示照片
-                context.cgContext.addPath(clipPath)
-                context.cgContext.clip()
-                
-                // 在裁剪区域内绘制照片
+                // 1. 首先绘制照片
                 originalImage.draw(in: drawRect)
                 
-                // 恢复图形状态
-                context.cgContext.restoreGState()
-                
-                // 第二步：绘制相框的不透明部分
-                for y in 0..<height {
-                    for x in 0..<width {
-                        let pixelIndex = (width * y + x) * 4
-                        let alpha = pixelData[pixelIndex + 3] // Alpha通道值
-                        
-                        // 如果alpha大于0，则在该位置绘制相框像素
-                        if alpha > 0 {
-                            // 获取相框像素的颜色
-                            let red = CGFloat(pixelData[pixelIndex]) / 255.0
-                            let green = CGFloat(pixelData[pixelIndex + 1]) / 255.0
-                            let blue = CGFloat(pixelData[pixelIndex + 2]) / 255.0
-                            let alphaValue = CGFloat(alpha) / 255.0
-                            
-                            // 在最终上下文中绘制该像素，使用源覆盖模式确保完全覆盖底层
-                            context.cgContext.setFillColor(red: red, green: green, blue: blue, alpha: alphaValue)
-                            context.cgContext.fill(CGRect(x: x, y: y, width: 1, height: 1))
-                        }
-                    }
-                }
+                // 2. 使用混合模式绘制相框
+                // 这样相框的透明部分会显示下面的照片，不透明部分会覆盖照片
+                frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size), blendMode: .normal, alpha: 1.0)
             }
         }
         

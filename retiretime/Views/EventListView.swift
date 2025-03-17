@@ -79,33 +79,10 @@ struct EventListView: View {
                         HStack(spacing: 15) {
                             // 左侧照片
                             ZStack {
-                                if let imageName = currentEvent.imageName, !imageName.isEmpty,
-                                   let image = loadImageFromDocumentDirectory(named: imageName) {
-                                    
-                                    // 如果有相框样式
-                                    if let frameStyleName = currentEvent.frameStyleName,
-                                       let frameStyle = FrameStyle(rawValue: frameStyleName),
-                                       frameStyle.usesMaskOrFrame,
-                                       let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
-                                           originalImage: image,
-                                           frameStyle: frameStyle,
-                                           scale: currentEvent.imageScale,
-                                           offset: CGSize(width: currentEvent.imageOffsetX, height: currentEvent.imageOffsetY)
-                                       ) {
-                                        Image(uiImage: processedImage)
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(width: 80, height: 80)
-                                    } else {
-                                        // 使用普通样式
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .scaleEffect(currentEvent.imageScale)
-                                            .offset(CGSize(width: currentEvent.imageOffsetX, height: currentEvent.imageOffsetY))
-                                            .frame(width: 80, height: 80)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    }
+                                if let imageName = currentEvent.imageName, !imageName.isEmpty {
+                                    // 使用LazyImage组件
+                                    LazyImage(event: currentEvent)
+                                        .frame(width: 80, height: 80)
                                 } else {
                                     // 显示默认图标背景
                                     RoundedRectangle(cornerRadius: 8)
@@ -301,29 +278,9 @@ private func getEventsInCategory(_ category: String, filter filterCategory: Stri
             // 图片部分
             ZStack {
                 if let imageName = event.imageName, !imageName.isEmpty {
-                    // 尝试从缓存加载图片
-                    if let processedImage = getProcessedImage(for: event) {
-                        Image(uiImage: processedImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 100, height: 100)
-                    } else {
-                        // 显示默认图标背景（加载中）
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.gray.opacity(0.1))
-                                .frame(width: 100, height: 100)
-                            
-                            Image(systemName: "photo")
-                                .font(.system(size: 30))
-                                .foregroundColor(.gray)
-                        }
+                    // 使用LazyImage组件延迟加载图片
+                    LazyImage(event: event)
                         .frame(width: 100, height: 100)
-                        .onAppear {
-                            // 异步加载图片
-                            loadAndCacheImage(named: imageName, for: event)
-                        }
-                    }
                 } else {
                     // 显示默认图标背景
                     ZStack {
@@ -363,98 +320,173 @@ private func getEventsInCategory(_ category: String, filter filterCategory: Stri
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
     
-    // 获取处理后的图片（从缓存或生成）
-    private func getProcessedImage(for event: Event) -> UIImage? {
-        guard let imageName = event.imageName else { return nil }
+    // 懒加载图片组件
+    struct LazyImage: View {
+        let event: Event
         
-        // 创建缓存键，包含所有可能影响图片处理的参数
-        let cacheKey = "\(imageName)_\(event.frameStyleName ?? "")_\(event.imageScale)_\(event.imageOffsetX)_\(event.imageOffsetY)"
+        @State private var image: UIImage?
+        @State private var isLoading = false
         
-        // 检查处理后的图片缓存
-        if let cachedImage = processedImageCache[cacheKey] {
-            return cachedImage
-        }
-        
-        // 检查原始图片缓存
-        guard let originalImage = imageCache[imageName] ?? loadImageFromDocumentDirectory(named: imageName) else {
-            return nil
-        }
-        
-        // 如果找到原始图片，缓存它
-        if imageCache[imageName] == nil {
-            var updatedImageCache = imageCache
-            updatedImageCache[imageName] = originalImage
-            imageCache = updatedImageCache
-        }
-        
-        // 处理图片
-        var processedImage: UIImage? = nil
-        
-        if let frameStyleName = event.frameStyleName,
-           let frameStyle = FrameStyle(rawValue: frameStyleName),
-           frameStyle.usesMaskOrFrame {
-            // 使用模板生成器处理图片
-            processedImage = TemplateImageGenerator.shared.generateTemplateImage(
-                originalImage: originalImage,
-                frameStyle: frameStyle,
-                scale: event.imageScale,
-                offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
-            )
-        } else {
-            // 简单缩放和偏移处理
-            processedImage = originalImage
-        }
-        
-        // 缓存处理后的图片
-        if let processedImage = processedImage {
-            var updatedProcessedImageCache = processedImageCache
-            updatedProcessedImageCache[cacheKey] = processedImage
-            processedImageCache = updatedProcessedImageCache
-        }
-        
-        return processedImage
-    }
-    
-    // 异步加载并缓存图片
-    private func loadAndCacheImage(named imageName: String, for event: Event) {
-        // 检查是否已经在缓存中
-        if imageCache[imageName] != nil {
-            // 如果原始图片已缓存，尝试生成处理后的图片
-            _ = getProcessedImage(for: event)
-            return
-        }
-        
-        // 在后台线程加载图片
-        DispatchQueue.global(qos: .userInitiated).async {
-            if let image = loadImageFromDocumentDirectory(named: imageName) {
-                // 在主线程更新缓存
-                DispatchQueue.main.async {
-                    // 缓存原始图片
-                    var updatedImageCache = self.imageCache
-                    updatedImageCache[imageName] = image
-                    self.imageCache = updatedImageCache
-                    
-                    // 生成并缓存处理后的图片
-                    _ = self.getProcessedImage(for: event)
+        var body: some View {
+            GeometryReader { geometry in
+                Group {
+                    if let image = image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    } else {
+                        // 加载中占位符
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                            
+                            if isLoading {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "photo")
+                                    .font(.system(size: min(geometry.size.width, geometry.size.height) * 0.3))
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        .onAppear {
+                            loadImage()
+                        }
+                    }
                 }
+            }
+        }
+        
+        private func loadImage() {
+            guard let imageName = event.imageName, !isLoading else { return }
+            
+            isLoading = true
+            
+            // 检查全局图片缓存
+            if let cachedImage = ImageCache.shared.getImage(for: imageName, with: event) {
+                self.image = cachedImage
+                self.isLoading = false
+                return
+            }
+            
+            // 在后台线程加载图片
+            DispatchQueue.global(qos: .userInitiated).async {
+                if let originalImage = loadImageFromDocumentDirectory(named: imageName) {
+                    var processedImage: UIImage?
+                    
+                    // 处理图片
+                    if let frameStyleName = event.frameStyleName,
+                       let frameStyle = FrameStyle(rawValue: frameStyleName),
+                       frameStyle.usesMaskOrFrame {
+                        // 使用模板生成器处理图片
+                        processedImage = TemplateImageGenerator.shared.generateTemplateImage(
+                            originalImage: originalImage,
+                            frameStyle: frameStyle,
+                            scale: event.imageScale,
+                            offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
+                        )
+                    } else {
+                        // 简单缩放和偏移处理
+                        processedImage = originalImage
+                    }
+                    
+                    // 缓存处理后的图片
+                    if let processedImage = processedImage {
+                        ImageCache.shared.setImage(processedImage, for: imageName, with: event)
+                        
+                        // 在主线程更新UI
+                        DispatchQueue.main.async {
+                            self.image = processedImage
+                            self.isLoading = false
+                        }
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.isLoading = false
+                    }
+                }
+            }
+        }
+        
+        // 从文档目录加载图片
+        private func loadImageFromDocumentDirectory(named: String) -> UIImage? {
+            guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                return nil
+            }
+            
+            let fileURL = documentsDirectory.appendingPathComponent(named)
+            
+            do {
+                let imageData = try Data(contentsOf: fileURL)
+                return UIImage(data: imageData)
+            } catch {
+                print("加载图片失败: \(error)")
+                return nil
             }
         }
     }
     
-    // 从文档目录加载图片
-    private func loadImageFromDocumentDirectory(named: String) -> UIImage? {
-        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
+    // 全局图片缓存
+    class ImageCache {
+        static let shared = ImageCache()
+        
+        private var cache = NSCache<NSString, UIImage>()
+        private let cacheQueue = DispatchQueue(label: "com.retiretime.imageCacheQueue", attributes: .concurrent)
+        
+        private init() {
+            // 设置缓存限制
+            cache.countLimit = 100 // 最多缓存100张图片
+            cache.totalCostLimit = 50 * 1024 * 1024 // 50MB
+            
+            // 监听内存警告
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(clearCache),
+                name: UIApplication.didReceiveMemoryWarningNotification,
+                object: nil
+            )
         }
         
-        let fileURL = documentsDirectory.appendingPathComponent(named)
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
         
-        do {
-            let imageData = try Data(contentsOf: fileURL)
-            return UIImage(data: imageData)
-        } catch {
-            print("加载图片失败: \(error)")
-            return nil
+        // 创建缓存键
+        private func createCacheKey(for imageName: String, with event: Event) -> NSString {
+            let key = "\(imageName)_\(event.frameStyleName ?? "")_\(event.imageScale)_\(event.imageOffsetX)_\(event.imageOffsetY)"
+            return key as NSString
+        }
+        
+        // 获取缓存图片
+        func getImage(for imageName: String, with event: Event) -> UIImage? {
+            let key = createCacheKey(for: imageName, with: event)
+            var image: UIImage?
+            
+            cacheQueue.sync {
+                image = cache.object(forKey: key)
+            }
+            
+            return image
+        }
+        
+        // 设置缓存图片
+        func setImage(_ image: UIImage, for imageName: String, with event: Event) {
+            let key = createCacheKey(for: imageName, with: event)
+            
+            cacheQueue.async(flags: .barrier) {
+                // 估算图片大小作为cost
+                let cost = Int(image.size.width * image.size.height * 4) // 4 bytes per pixel (RGBA)
+                self.cache.setObject(image, forKey: key, cost: cost)
+            }
+        }
+        
+        // 清除缓存
+        @objc func clearCache() {
+            cacheQueue.async(flags: .barrier) {
+                self.cache.removeAllObjects()
+            }
         }
     }
     
