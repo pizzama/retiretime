@@ -11,12 +11,12 @@ import PhotosUI
 // 定义头像框样式枚举
 enum FrameStyle: String, CaseIterable, Identifiable {
     case template = "无"
-    case mask = "蒙版"
-    case imageFrame = "相框"
-    case circleFrame = "圆形"
-    case heartFrame = "心形"
-    case flowerFrame = "花朵"
-    case starFrame = "星形"
+    case frame_style1 = "frame_style1"
+    case frame_polaroid = "frame_polaroid"
+    case frame_style2 = "frame_style2"
+    case frame_style3 = "frame_style3"
+    case frame_style4 = "frame_style4"
+    case frame_style5 = "frame_style5"
     
     var id: String { self.rawValue }
     
@@ -24,12 +24,12 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     var borderColor: Color {
         switch self {
         case .template: return .green
-        case .mask: return .orange
-        case .imageFrame: return .pink
-        case .circleFrame: return .red
-        case .heartFrame: return .pink
-        case .flowerFrame: return Color(red: 1.0, green: 0.6, blue: 0.6)
-        case .starFrame: return .yellow
+        case .frame_style1: return .orange
+        case .frame_polaroid: return .pink
+        case .frame_style2: return .red
+        case .frame_style3: return .pink
+        case .frame_style4: return .pink
+        case .frame_style5: return .yellow
         }
     }
     
@@ -37,12 +37,12 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     var decorationSymbols: [String] {
         switch self {
         case .template: return ["sparkles", "wand.and.stars", "gift", "party.popper"]
-        case .mask: return ["person.crop.circle", "person.crop.square", "heart", "star"]
-        case .imageFrame: return ["photo.on.rectangle", "photo.artframe", "photo.stack", "photo.tv"]
-        case .circleFrame: return ["circle", "circle.fill", "circle.dotted", "circle.dashed"]
-        case .heartFrame: return ["heart", "heart.fill", "heart.circle", "heart.square"]
-        case .flowerFrame: return ["leaf", "leaf.fill", "leaf.circle", "leaf.arrow.triangle.circlepath"]
-        case .starFrame: return ["star", "star.fill", "star.circle", "star.square"]
+        case .frame_style1: return ["person.crop.circle", "person.crop.square", "heart", "star"]
+        case .frame_polaroid: return ["photo.on.rectangle", "photo.artframe", "photo.stack", "photo.tv"]
+        case .frame_style2: return ["circle", "circle.fill", "circle.dotted", "circle.dashed"]
+        case .frame_style3: return ["heart", "heart.fill", "heart.circle", "heart.square"]
+        case .frame_style4: return ["leaf", "leaf.fill", "leaf.circle", "leaf.arrow.triangle.circlepath"]
+        case .frame_style5: return ["star", "star.fill", "star.circle", "star.square"]
         }
     }
     
@@ -55,37 +55,37 @@ enum FrameStyle: String, CaseIterable, Identifiable {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-        case .mask:
+        case .frame_style1:
             return LinearGradient(
                 gradient: Gradient(colors: [Color.orange.opacity(0.1), Color.yellow.opacity(0.05)]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-        case .imageFrame:
+        case .frame_polaroid:
             return LinearGradient(
                 gradient: Gradient(colors: [Color.pink.opacity(0.1), Color.purple.opacity(0.05)]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-        case .circleFrame:
+        case .frame_style2:
             return LinearGradient(
                 gradient: Gradient(colors: [Color.red.opacity(0.1), Color.orange.opacity(0.05)]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-        case .heartFrame:
+        case .frame_style3:
             return LinearGradient(
                 gradient: Gradient(colors: [Color.pink.opacity(0.1), Color.red.opacity(0.05)]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-        case .flowerFrame:
+        case .frame_style4:
             return LinearGradient(
                 gradient: Gradient(colors: [Color(red: 1.0, green: 0.6, blue: 0.6).opacity(0.1), Color(red: 1.0, green: 0.8, blue: 0.8).opacity(0.05)]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-        case .starFrame:
+        case .frame_style5:
             return LinearGradient(
                 gradient: Gradient(colors: [Color.yellow.opacity(0.1), Color.orange.opacity(0.05)]),
                 startPoint: .topLeading,
@@ -97,18 +97,18 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     // 返回蒙版或相框的名称
     var maskImageName: String? {
         switch self {
-        case .mask:
-            return "mask_circle" // 圆形蒙版
-        case .imageFrame:
+        case .frame_style1:
+            return "frame_style1" // 圆形蒙版
+        case .frame_polaroid:
             return "frame_polaroid" // 拍立得相框
-        case .circleFrame:
-            return "mask_circle" // 圆形蒙版
-        case .heartFrame:
-            return "mask_heart" // 心形蒙版
-        case .flowerFrame:
-            return "flower_frame" // 花朵相框
-        case .starFrame:
-            return "mask_star" // 星形蒙版
+        case .frame_style2:
+            return "frame_style2" // 圆形蒙版
+        case .frame_style3:
+            return "frame_style3" // 心形蒙版
+        case .frame_style4:
+            return "frame_style4" // 花朵相框
+        case .frame_style5:
+            return "frame_style5" // 星形蒙版
         default:
             return nil
         }
@@ -116,7 +116,7 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     
     // 判断是否使用蒙版或相框
     var usesMaskOrFrame: Bool {
-        return self == .mask || self == .imageFrame || self == .circleFrame || self == .heartFrame || self == .flowerFrame || self == .starFrame
+        return self == .frame_style1 || self == .frame_polaroid || self == .frame_style2 || self == .frame_style3 || self == .frame_style4 || self == .frame_style5
     }
 }
 
