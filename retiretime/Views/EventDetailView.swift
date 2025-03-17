@@ -98,17 +98,17 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     var maskImageName: String? {
         switch self {
         case .frame_style1:
-            return "frame_style1" // 圆形蒙版
+            return "frame_style1"
         case .frame_polaroid:
-            return "frame_polaroid" // 拍立得相框
+            return "frame_polaroid"
         case .frame_style2:
-            return "frame_style2" // 圆形蒙版
+            return "frame_style2"
         case .frame_style3:
-            return "frame_style3" // 心形蒙版
+            return "frame_style3"
         case .frame_style4:
-            return "frame_style4" // 花朵相框
+            return "frame_style4"
         case .frame_style5:
-            return "frame_style5" // 星形蒙版
+            return "frame_style5"
         default:
             return nil
         }
