@@ -211,6 +211,10 @@ class TemplateImageGenerator {
     func generateFramedImage(originalImage: UIImage, frameName: String, scale: CGFloat = 1.0, offset: CGSize = .zero) -> UIImage? {
         // 首先尝试加载预定义的相框图片
         if let frameImage = UIImage(named: frameName) {
+            // 尝试加载对应的蒙版图片
+            let maskName = frameName + "_mask"
+            let maskImage = UIImage(named: maskName)
+            
             // 计算照片在相框中的位置和大小
             let photoRect = calculatePhotoRect(frameSize: frameImage.size, frameName: frameName, offset: offset)
             
@@ -260,14 +264,43 @@ class TemplateImageGenerator {
             let renderer = UIGraphicsImageRenderer(size: frameImage.size)
             
             return renderer.image { context in
-                // 优化：使用更高效的绘制方法
-                
-                // 1. 首先绘制照片
-                originalImage.draw(in: drawRect)
-                
-                // 2. 使用混合模式绘制相框
-                // 这样相框的透明部分会显示下面的照片，不透明部分会覆盖照片
-                frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size), blendMode: .normal, alpha: 1.0)
+                // 如果有蒙版图片，使用蒙版定义照片显示区域
+                if let maskImage = maskImage, let cgMask = maskImage.cgImage {
+                    // 创建一个临时上下文来绘制蒙版图片
+                    let tempRenderer = UIGraphicsImageRenderer(size: frameImage.size)
+                    let maskedPhoto = tempRenderer.image { tempContext in
+                        // 绘制照片
+                        originalImage.draw(in: drawRect)
+                        
+                        // 使用蒙版的alpha通道作为裁剪区域
+                        // 这里使用destinationIn混合模式，只保留蒙版不透明部分下方的照片
+                        maskImage.draw(in: CGRect(origin: .zero, size: frameImage.size), blendMode: .destinationIn, alpha: 1.0)
+                    }
+                    
+                    // 绘制处理后的照片
+                    maskedPhoto.draw(in: CGRect(origin: .zero, size: frameImage.size))
+                    
+                    // 绘制相框
+                    frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size))
+                } else {
+                    // 如果没有蒙版图片，使用默认方法
+                    // 创建一个临时图像，将照片绘制到相框形状中
+                    let tempRenderer = UIGraphicsImageRenderer(size: frameImage.size)
+                    let maskedPhoto = tempRenderer.image { tempContext in
+                        // 绘制照片
+                        originalImage.draw(in: drawRect)
+                        
+                        // 使用相框的alpha通道作为蒙版
+                        // 这里使用destinationOut混合模式，移除相框不透明部分下方的照片
+                        frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size), blendMode: .destinationOut, alpha: 1.0)
+                    }
+                    
+                    // 绘制处理后的照片
+                    maskedPhoto.draw(in: CGRect(origin: .zero, size: frameImage.size))
+                    
+                    // 绘制相框
+                    frameImage.draw(in: CGRect(origin: .zero, size: frameImage.size))
+                }
             }
         }
         
