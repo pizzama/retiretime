@@ -270,4 +270,9 @@ class EventStore: ObservableObject {
         // 删除该子事件
         deleteEvent(childEvent)
     }
+    
+    // 根据ID获取事件
+    func getEvent(by id: UUID) -> Event? {
+        return events.first { $0.id == id }
+    }
 }

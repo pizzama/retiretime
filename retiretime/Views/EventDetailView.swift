@@ -122,6 +122,7 @@ enum FrameStyle: String, CaseIterable, Identifiable {
 
 struct EventDetailView: View {
     let event: Event
+    @State private var currentEvent: Event
     @State private var selectedFrameStyle: FrameStyle = .template
     @State private var selectedTemplateType: DecorationType = .polaroid
     @State private var showingEditSheet = false
@@ -134,6 +135,11 @@ struct EventDetailView: View {
     @State private var childEvents: [Event] = []
     @State private var showingPreview = false
     @State private var activeSheet: ActiveSheet? = nil
+    
+    // 添加照片刷新相关状态变量
+    @State private var displayImage: UIImage? = nil
+    @State private var isImageLoading = false
+    @State private var needsImageRefresh = true
     
     enum ActiveSheet: Identifiable {
         case photosPicker
@@ -157,6 +163,9 @@ struct EventDetailView: View {
         self.event = event
         self.eventStore = eventStore
         
+        // 初始化currentEvent
+        _currentEvent = State(initialValue: event)
+        
         // 根据event中保存的frameStyleName设置初始框样式
         if let frameStyleName = event.frameStyleName, let style = FrameStyle(rawValue: frameStyleName) {
             _selectedFrameStyle = State(initialValue: style)
@@ -173,212 +182,11 @@ struct EventDetailView: View {
             VStack(alignment: .center, spacing: 24) {
                 // 拍立得风格的照片
                 VStack(alignment: .center) {
-                    // 相框效果
-                    ZStack {
-                        // 相框背景 - 使用渐变色
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(selectedFrameStyle.backgroundGradient())
-                            .frame(width: 270, height: 350)
-                            .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
-                        
-                        // 相框边框
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(selectedFrameStyle.borderColor.opacity(0.3), lineWidth: 2)
-                            .frame(width: 270, height: 350)
-                        
-                        // 拍立得照片
-                        ZStack(alignment: .bottom) {
-                            // 照片部分
-                            ZStack {
-                                if let imageName = event.imageName, !imageName.isEmpty {
-                                    // 从文档目录加载图片
-                                    if let image = loadImageFromDocumentDirectory(named: imageName) {
-                                        // 使用TemplateImageGenerator处理图片
-                                        if selectedFrameStyle.usesMaskOrFrame {
-                                            if let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
-                                                originalImage: image,
-                                                frameStyle: selectedFrameStyle,
-                                                scale: event.imageScale,
-                                                offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
-                                            ) {
-                                                Image(uiImage: processedImage)
-                                                    .resizable()
-                                                    .scaledToFit()
-                                                    .frame(width: 240, height: 240)
-                                            } else {
-                                                // 如果处理失败，显示原始图片，应用缩放和偏移
-                                                Image(uiImage: image)
-                                                    .resizable()
-                                                    .scaledToFill()
-                                                    .scaleEffect(event.imageScale)
-                                                    .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
-                                                    .frame(width: 240, height: 240)
-                                                    .clipped()
-                                                    .overlay(
-                                                        Text("相框处理失败")
-                                                            .foregroundColor(.red)
-                                                            .background(Color.white.opacity(0.7))
-                                                    )
-                                            }
-                                        } else {
-                                            // 使用普通样式，应用缩放和偏移
-                                            Image(uiImage: image)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .scaleEffect(event.imageScale)
-                                                .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
-                                                .frame(width: 240, height: 240)
-                                                .clipped()
-                                        }
-                                    } else {
-                                        // 如果无法加载图片，显示默认图标背景
-                                        Rectangle()
-                                            .fill(event.type.color.opacity(0.1))
-                                            .frame(width: 240, height: 240)
-                                        
-                                        Image(systemName: event.type.icon)
-                                            .font(.system(size: 80))
-                                            .foregroundColor(event.type.color)
-                                    }
-                                } else {
-                                    // 默认图标背景
-                                    Rectangle()
-                                        .fill(event.type.color.opacity(0.1))
-                                        .frame(width: 240, height: 240)
-                                    
-                                    Image(systemName: event.type.icon)
-                                        .font(.system(size: 80))
-                                        .foregroundColor(event.type.color)
-                                }
-                            
-                            }
-                            .frame(width: 240, height: 240)
-                            .padding(.bottom, 80)
-                            
-                            // 拍立得白底部分
-                            VStack(spacing: 4) {
-                                // 事件名称
-                                Text(event.name)
-                                    .font(.system(size: 20, weight: .bold))
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(2)
-                                    .padding(.horizontal, 10)
-                                    .padding(.top, 16)
-                                    .foregroundColor(.black)
-                                
-                                // 备注（如果有）
-                                if !event.notes.isEmpty {
-                                    Text(event.notes)
-                                        .font(.system(size: 12))
-                                        .italic()
-                                        .foregroundColor(.gray)
-                                        .multilineTextAlignment(.center)
-                                        .lineLimit(2)
-                                        .padding(.horizontal, 10)
-                                }
-                                
-                                // 剩余/已过天数 - 使用手写风格标签
-                                Text(event.daysRemaining == 0 ? "今天" : 
-                                     (event.isCountdown ? "还有\(abs(event.daysRemaining))天" : "已过\(abs(event.daysRemaining))天"))
-                                    .font(.custom("Noteworthy", size: 14))
-                                    .foregroundColor(event.isCountdown ? .green : .orange)
-                                    .padding(.top, 2)
-                                    .rotationEffect(.degrees(-2))
-                                
-                            }
-                            .frame(width: 240, height: 80)
-                            .background(Color.white)
-                        }
-                        .frame(width: 240, height: 360)
-                        .background(Color.white)
-                        .cornerRadius(8)
-                        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
-                        .rotationEffect(.degrees(2))
-                        
-                        // 根据选择的框样式添加装饰元素
-                        if selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
-                            // 装饰元素 - 左上角
-                            if selectedFrameStyle.decorationSymbols.count > 0 {
-                                Image(systemName: selectedFrameStyle.decorationSymbols[0])
-                                    .foregroundColor(selectedFrameStyle.borderColor)
-                                    .font(.system(size: 20))
-                                    .position(x: 35, y: 35)
-                            }
-                            
-                            // 装饰元素 - 右上角
-                            if selectedFrameStyle.decorationSymbols.count > 1 {
-                                Image(systemName: selectedFrameStyle.decorationSymbols[1])
-                                    .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
-                                    .font(.system(size: 18))
-                                    .position(x: 235, y: 35)
-                            }
-                            
-                            // 装饰元素 - 右下角
-                            if selectedFrameStyle.decorationSymbols.count > 2 {
-                                Image(systemName: selectedFrameStyle.decorationSymbols[2])
-                                    .foregroundColor(selectedFrameStyle.borderColor.opacity(0.8))
-                                    .font(.system(size: 16))
-                                    .position(x: 235, y: 315)
-                            }
-                            
-                            // 装饰元素 - 左下角
-                            if selectedFrameStyle.decorationSymbols.count > 3 {
-                                Image(systemName: selectedFrameStyle.decorationSymbols[3])
-                                    .foregroundColor(selectedFrameStyle.borderColor.opacity(0.6))
-                                    .font(.system(size: 16))
-                                    .position(x: 35, y: 315)
-                            }
-                        }
-                        
-                        // 装饰元素 - 顶部中间
-                        if event.type == .retirement && selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
-                            Image(systemName: "party.popper.fill")
-                                .foregroundColor(selectedFrameStyle.borderColor.opacity(0.8))
-                                .font(.system(size: 18))
-                                .position(x: 130, y: 20)
-                        }
-                        
-                        // 装饰元素 - 底部中间
-                        if selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
-                            if event.isCountdown {
-                                Image(systemName: "hourglass")
-                                    .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
-                                    .font(.system(size: 16))
-                                    .position(x: 130, y: 310)
-                            } else {
-                                Image(systemName: "calendar.badge.clock")
-                                    .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
-                                    .font(.system(size: 16))
-                                    .position(x: 130, y: 310)
-                            }
-                        }
-                        
-                        // 装饰线条 - 顶部
-                        if selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
-                            Path { path in
-                                path.move(to: CGPoint(x: 45, y: 20))
-                                path.addLine(to: CGPoint(x: 225, y: 20))
-                            }
-                            .stroke(selectedFrameStyle.borderColor.opacity(0.4), lineWidth: 1)
-                        }
-                        
-                        // 装饰线条 - 底部
-                        if selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
-                            Path { path in
-                                path.move(to: CGPoint(x: 45, y: 330))
-                                path.addLine(to: CGPoint(x: 225, y: 330))
-                            }
-                            .stroke(selectedFrameStyle.borderColor.opacity(0.4), lineWidth: 1)
-                        }
-                    }
-                    .padding(.top, 20)
+                    // 相框效果 - 使用辅助方法简化代码
+                    frameView
                     
                     // 日期信息
-                    Text(event.formattedDate)
+                    Text(currentEvent.formattedDate)
                         .font(.custom("Noteworthy", size: 16))
                         .foregroundColor(.gray)
                         .padding(.top, 8)
@@ -427,16 +235,16 @@ struct EventDetailView: View {
                 // 详细信息区域
                 VStack(alignment: .leading, spacing: 16) {
                     // 类型
-                    DetailRow(title: "类型", value: event.type.rawValue, icon: "tag")
+                    DetailRow(title: "类型", value: currentEvent.type.rawValue, icon: "tag")
                     
                     // 分类
-                    DetailRow(title: "分类", value: event.category, icon: "folder")
+                    DetailRow(title: "分类", value: currentEvent.category, icon: "folder")
                     
                     // 提醒
-                    if event.reminderEnabled {
+                    if currentEvent.reminderEnabled {
                         DetailRow(
                             title: "提醒",
-                            value: event.reminderDate != nil ? formatReminderDate(event.reminderDate!) : "已开启",
+                            value: currentEvent.reminderDate != nil ? formatReminderDate(currentEvent.reminderDate!) : "已开启",
                             icon: "bell"
                         )
                     }
@@ -501,46 +309,64 @@ struct EventDetailView: View {
                     selectedImage: $selectedImage,
                     selectedImageName: $selectedImageName,
                     showingPreview: $showingPreview,
-                    event: event,
+                    event: currentEvent,
                     eventStore: eventStore,
                     frameStyle: selectedFrameStyle
                 ) { imageName in
                     if let imageName = imageName {
                         // 更新事件的照片
-                        var updatedEvent = event
+                        var updatedEvent = currentEvent
                         updatedEvent.imageName = imageName
                         eventStore.updateEvent(updatedEvent)
+                        
+                        // 更新当前视图使用的事件数据
+                        self.currentEvent = updatedEvent
+                        
+                        // 发送通知，让所有使用此事件的视图都能刷新
+                        NotificationCenter.default.post(
+                            name: Notification.Name("EventUpdated"),
+                            object: nil,
+                            userInfo: ["eventId": event.id]
+                        )
                     }
                     activeSheet = nil
                 }
             case .framePicker:
-                FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: event, eventStore: eventStore)
+                FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: currentEvent, eventStore: eventStore)
                     .onDisappear {
+                        // 刷新当前事件，以防在帧选择器中已经更新了事件
+                        if let updatedEvent = eventStore.getEvent(by: currentEvent.id) {
+                            self.currentEvent = updatedEvent
+                        }
                         activeSheet = nil
                     }
             case .editSheet:
-                EventFormView(eventStore: eventStore, editingEvent: event)
+                ChildEventEditView(eventStore: eventStore, childEvent: currentEvent)
                     .onDisappear {
                         activeSheet = nil
                     }
             case .childEventForm:
-                ChildEventFormView(parentEvent: event, eventStore: eventStore)
+                ChildEventFormView(parentEvent: currentEvent, eventStore: eventStore)
                     .onDisappear {
                         // 表单关闭时刷新子事件列表
-                        childEvents = eventStore.childEvents(for: event)
+                        childEvents = eventStore.childEvents(for: currentEvent)
                         activeSheet = nil
                     }
             case .preview:
                 if let image = selectedImage {
                     PhotoPreviewView(
                         image: image,
-                        event: event,
+                        event: currentEvent,
                         eventStore: eventStore,
                         frameStyle: selectedFrameStyle
                     )
                     .onDisappear {
                         // 清除预览状态
                         showingPreview = false
+                        // 刷新当前事件，以防在预览视图中已经更新了事件
+                        if let updatedEvent = eventStore.getEvent(by: currentEvent.id) {
+                            self.currentEvent = updatedEvent
+                        }
                         activeSheet = nil
                     }
                 } else {
@@ -566,12 +392,59 @@ struct EventDetailView: View {
             }
         }
         .onAppear {
+            // 刷新当前事件的数据
+            if let updatedEvent = eventStore.getEvent(by: event.id) {
+                self.currentEvent = updatedEvent
+            }
+            
             // 刷新子事件列表
-            childEvents = eventStore.childEvents(for: event)
+            childEvents = eventStore.childEvents(for: currentEvent)
+            
+            // 当视图出现时加载图片
+            if needsImageRefresh {
+                loadAndProcessImage()
+            }
+            
+            // 添加通知观察者，用于刷新图片缓存
+            NotificationCenter.default.addObserver(forName: Notification.Name("RefreshImageCache"), object: nil, queue: .main) { notification in
+                // 检查通知中的事件ID是否与当前事件ID匹配
+                if let notificationEventId = notification.userInfo?["eventId"] as? UUID,
+                   notificationEventId == currentEvent.id {
+                    // 清除当前图片，触发重新加载
+                    self.displayImage = nil
+                    self.needsImageRefresh = true
+                    self.loadAndProcessImage()
+                }
+            }
+            
+            // 添加通知监听，以便在事件数据更新时刷新UI
+            NotificationCenter.default.addObserver(
+                forName: Notification.Name("EventUpdated"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let userInfo = notification.userInfo,
+                   let eventId = userInfo["eventId"] as? UUID,
+                   eventId == event.id,
+                   let updatedEvent = eventStore.getEvent(by: eventId) {
+                    print("事件详情页面：收到事件更新通知，事件ID: \(eventId)")
+                    self.currentEvent = updatedEvent
+                    self.needsImageRefresh = true
+                    self.loadAndProcessImage()
+                }
+            }
+        }
+        .onDisappear {
+            // 移除通知监听
+            NotificationCenter.default.removeObserver(self, name: Notification.Name("RefreshImageCache"), object: nil)
+            NotificationCenter.default.removeObserver(self, name: Notification.Name("EventUpdated"), object: nil)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-            // 当应用从后台回到前台时刷新子事件列表
-            childEvents = eventStore.childEvents(for: event)
+            // 当应用从后台回到前台时刷新子事件列表和当前事件数据
+            if let updatedEvent = eventStore.getEvent(by: event.id) {
+                self.currentEvent = updatedEvent
+            }
+            childEvents = eventStore.childEvents(for: currentEvent)
         }
     }
     
@@ -581,6 +454,238 @@ struct EventDetailView: View {
         formatter.timeStyle = .short
         formatter.locale = Locale(identifier: "zh_CN")
         return formatter.string(from: date)
+    }
+    
+    // 相框视图辅助方法
+    private var frameView: some View {
+        ZStack {
+            // 相框背景 - 使用渐变色
+            RoundedRectangle(cornerRadius: 12)
+                .fill(selectedFrameStyle.backgroundGradient())
+                .frame(width: 270, height: 350)
+                .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
+            
+            // 相框边框
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(selectedFrameStyle.borderColor.opacity(0.3), lineWidth: 2)
+                .frame(width: 270, height: 350)
+            
+            // 拍立得照片容器
+            polaroidContainer
+            
+            // 装饰元素部分
+            frameDecorations
+        }
+        .padding(.top, 20)
+    }
+    
+    // 拍立得照片容器视图
+    private var polaroidContainer: some View {
+        ZStack(alignment: .bottom) {
+            // 照片部分
+            photoView
+                .frame(width: 240, height: 240)
+                .padding(.bottom, 80)
+            
+            // 拍立得白底部分
+            VStack(spacing: 4) {
+                // 事件名称
+                Text(currentEvent.name)
+                    .font(.system(size: 20, weight: .bold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 16)
+                    .foregroundColor(.black)
+                
+                // 备注（如果有）
+                if !currentEvent.notes.isEmpty {
+                    Text(currentEvent.notes)
+                        .font(.system(size: 12))
+                        .italic()
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.horizontal, 10)
+                }
+                
+                // 剩余/已过天数 - 使用手写风格标签
+                Text(currentEvent.daysRemaining == 0 ? "今天" : 
+                     (currentEvent.isCountdown ? "还有\(abs(currentEvent.daysRemaining))天" : "已过\(abs(currentEvent.daysRemaining))天"))
+                    .font(.custom("Noteworthy", size: 14))
+                    .foregroundColor(currentEvent.isCountdown ? .green : .orange)
+                    .padding(.top, 2)
+                    .rotationEffect(.degrees(-2))
+            }
+            .frame(width: 240, height: 80)
+            .background(Color.white)
+        }
+        .frame(width: 240, height: 360)
+        .background(Color.white)
+        .cornerRadius(8)
+        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        )
+        .rotationEffect(.degrees(2))
+    }
+    
+    // 相框装饰元素
+    private var frameDecorations: some View {
+        Group {
+            // 根据选择的框样式添加装饰元素
+            if selectedFrameStyle != .template && !selectedFrameStyle.usesMaskOrFrame {
+                // 装饰元素 - 左上角
+                if selectedFrameStyle.decorationSymbols.count > 0 {
+                    Image(systemName: selectedFrameStyle.decorationSymbols[0])
+                        .foregroundColor(selectedFrameStyle.borderColor)
+                        .font(.system(size: 20))
+                        .position(x: 35, y: 35)
+                }
+                
+                // 装饰元素 - 右上角
+                if selectedFrameStyle.decorationSymbols.count > 1 {
+                    Image(systemName: selectedFrameStyle.decorationSymbols[1])
+                        .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
+                        .font(.system(size: 18))
+                        .position(x: 235, y: 35)
+                }
+                
+                // 装饰元素 - 右下角
+                if selectedFrameStyle.decorationSymbols.count > 2 {
+                    Image(systemName: selectedFrameStyle.decorationSymbols[2])
+                        .foregroundColor(selectedFrameStyle.borderColor.opacity(0.8))
+                        .font(.system(size: 16))
+                        .position(x: 235, y: 315)
+                }
+                
+                // 装饰元素 - 左下角
+                if selectedFrameStyle.decorationSymbols.count > 3 {
+                    Image(systemName: selectedFrameStyle.decorationSymbols[3])
+                        .foregroundColor(selectedFrameStyle.borderColor.opacity(0.6))
+                        .font(.system(size: 16))
+                        .position(x: 35, y: 315)
+                }
+                
+                // 装饰元素 - 顶部中间
+                if currentEvent.type == .retirement {
+                    Image(systemName: "party.popper.fill")
+                        .foregroundColor(selectedFrameStyle.borderColor.opacity(0.8))
+                        .font(.system(size: 18))
+                        .position(x: 130, y: 20)
+                }
+                
+                // 装饰元素 - 底部中间
+                if currentEvent.isCountdown {
+                    Image(systemName: "hourglass")
+                        .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
+                        .font(.system(size: 16))
+                        .position(x: 130, y: 310)
+                } else {
+                    Image(systemName: "calendar.badge.clock")
+                        .foregroundColor(selectedFrameStyle.borderColor.opacity(0.7))
+                        .font(.system(size: 16))
+                        .position(x: 130, y: 310)
+                }
+                
+                // 装饰线条 - 顶部
+                Path { path in
+                    path.move(to: CGPoint(x: 45, y: 20))
+                    path.addLine(to: CGPoint(x: 225, y: 20))
+                }
+                .stroke(selectedFrameStyle.borderColor.opacity(0.4), lineWidth: 1)
+                
+                // 装饰线条 - 底部
+                Path { path in
+                    path.move(to: CGPoint(x: 45, y: 330))
+                    path.addLine(to: CGPoint(x: 225, y: 330))
+                }
+                .stroke(selectedFrameStyle.borderColor.opacity(0.4), lineWidth: 1)
+            }
+        }
+    }
+    
+    // 照片视图辅助方法 - 使用currentEvent而不是event
+    private var photoView: some View {
+        ZStack {
+            if let imageName = currentEvent.imageName, !imageName.isEmpty {
+                if let image = displayImage {
+                    // 如果有处理后的图片，直接显示
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 240, height: 240)
+                } else if isImageLoading {
+                    // 显示加载中
+                    ProgressView()
+                        .frame(width: 240, height: 240)
+                } else {
+                    // 显示占位图标并触发加载
+                    Rectangle()
+                        .fill(currentEvent.type.color.opacity(0.1))
+                        .frame(width: 240, height: 240)
+                    
+                    Image(systemName: "photo")
+                        .font(.system(size: 60))
+                        .foregroundColor(currentEvent.type.color)
+                        .onAppear {
+                            loadAndProcessImage()
+                        }
+                }
+            } else {
+                // 默认图标背景
+                Rectangle()
+                    .fill(currentEvent.type.color.opacity(0.1))
+                    .frame(width: 240, height: 240)
+                
+                Image(systemName: currentEvent.type.icon)
+                    .font(.system(size: 80))
+                    .foregroundColor(currentEvent.type.color)
+            }
+        }
+    }
+    
+    // 加载和处理图片的方法
+    private func loadAndProcessImage() {
+        guard let imageName = currentEvent.imageName, !imageName.isEmpty else { return }
+        
+        isImageLoading = true
+        
+        // 使用后台线程加载图片
+        DispatchQueue.global().async {
+            // 从文档目录加载图片
+            if let image = self.loadImageFromDocumentDirectory(named: imageName) {
+                // 检查是否应用相框样式
+                var finalImage: UIImage? = nil
+                
+                if let frameStyleName = self.currentEvent.frameStyleName,
+                   let frameStyle = FrameStyle(rawValue: frameStyleName),
+                   frameStyle.usesMaskOrFrame {
+                    finalImage = TemplateImageGenerator.shared.generateTemplateImage(
+                        originalImage: image,
+                        frameStyle: frameStyle, 
+                        scale: self.currentEvent.imageScale,
+                        offset: CGSize(width: self.currentEvent.imageOffsetX, height: self.currentEvent.imageOffsetY)
+                    )
+                } else {
+                    // 使用原始图片
+                    finalImage = image
+                }
+                
+                // 切换回主线程更新UI
+                DispatchQueue.main.async {
+                    self.displayImage = finalImage
+                    self.isImageLoading = false
+                    self.needsImageRefresh = false
+                }
+            } else {
+                // 处理加载失败的情况
+                DispatchQueue.main.async {
+                    self.isImageLoading = false
+                }
+            }
+        }
     }
     
     // 从文档目录加载图片
@@ -875,6 +980,14 @@ struct PhotoPreviewView: View {
                             updatedEvent.imageOffsetX = imageOffset.width
                             updatedEvent.imageOffsetY = imageOffset.height
                             eventStore.updateEvent(updatedEvent)
+                            
+                            // 发送通知，让所有使用此事件的视图都能刷新
+                            NotificationCenter.default.post(
+                                name: Notification.Name("EventUpdated"),
+                                object: nil,
+                                userInfo: ["eventId": event.id]
+                            )
+                            
                             presentationMode.wrappedValue.dismiss()
                         }
                     },
@@ -1001,11 +1114,18 @@ struct FramePickerView: View {
                         // 更新Event对象和保存
                         var updatedEvent = event
                         updatedEvent.frameStyleName = style.rawValue
-                        try? eventStore.updateEvent(updatedEvent)
+                        eventStore.updateEvent(updatedEvent)
                         
                         // 发送通知，通知EventListView刷新图片缓存
                         NotificationCenter.default.post(
                             name: Notification.Name("RefreshImageCache"),
+                            object: nil,
+                            userInfo: ["eventId": event.id]
+                        )
+                        
+                        // 发送通知，让所有使用此事件的视图都能刷新
+                        NotificationCenter.default.post(
+                            name: Notification.Name("EventUpdated"),
                             object: nil,
                             userInfo: ["eventId": event.id]
                         )
@@ -1147,7 +1267,7 @@ struct ChildEventFormView: View {
                     Button("创建子事件") {
                         if !name.isEmpty {
                             // 创建子事件
-                            eventStore.createChildEvent(for: parentEvent, name: name, date: date)
+                            _ = eventStore.createChildEvent(for: parentEvent, name: name, date: date)
                             presentationMode.wrappedValue.dismiss()
                         }
                     }
@@ -1166,6 +1286,7 @@ struct ChildEventFormView: View {
 // 子事件详情视图
 struct ChildEventDetailView: View {
     let event: Event
+    @State private var currentEvent: Event
     @State private var selectedFrameStyle: FrameStyle = .template
     @State private var showingPhotosPicker = false
     @State private var showingFramePicker = false
@@ -1177,6 +1298,11 @@ struct ChildEventDetailView: View {
     @State private var activeSheet: ActiveSheet? = nil
     let eventStore: EventStore
     @Environment(\.presentationMode) var presentationMode
+    
+    // 添加照片刷新相关状态变量
+    @State private var displayImage: UIImage? = nil
+    @State private var isImageLoading = false
+    @State private var needsImageRefresh = true
     
     enum ActiveSheet: Identifiable {
         case photosPicker
@@ -1198,6 +1324,9 @@ struct ChildEventDetailView: View {
         self.event = event
         self.eventStore = eventStore
         
+        // 初始化currentEvent
+        _currentEvent = State(initialValue: event)
+        
         // 根据event中保存的frameStyleName设置初始框样式
         if let frameStyleName = event.frameStyleName, let style = FrameStyle(rawValue: frameStyleName) {
             _selectedFrameStyle = State(initialValue: style)
@@ -1211,113 +1340,11 @@ struct ChildEventDetailView: View {
             VStack(alignment: .center, spacing: 24) {
                 // 拍立得风格的照片
                 VStack(alignment: .center) {
-                    // 相框效果
-                    ZStack {
-                        // 相框背景 - 使用渐变色
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(selectedFrameStyle.backgroundGradient())
-                            .frame(width: 270, height: 350)
-                            .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
-                        
-                        // 相框边框
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(selectedFrameStyle.borderColor.opacity(0.3), lineWidth: 2)
-                            .frame(width: 270, height: 350)
-                        
-                        // 拍立得照片
-                        ZStack(alignment: .bottom) {
-                            // 照片部分
-                            ZStack {
-                                if let imageName = event.imageName, !imageName.isEmpty,
-                                   let image = loadImageFromDocumentDirectory(named: imageName) {
-                                    
-                                    // 如果有相框样式
-                                    if let frameStyleName = event.frameStyleName,
-                                       let frameStyle = FrameStyle(rawValue: frameStyleName),
-                                       frameStyle.usesMaskOrFrame,
-                                       let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
-                                           originalImage: image,
-                                           frameStyle: frameStyle,
-                                           scale: event.imageScale,
-                                           offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
-                                       ) {
-                                        Image(uiImage: processedImage)
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(width: 260, height: 260)
-                                    } else {
-                                        // 使用普通样式
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .scaleEffect(event.imageScale)
-                                            .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
-                                            .frame(width: 240, height: 240)
-                                            .clipped()
-                                    }
-                                } else {
-                                    // 显示默认图标背景
-                                    Rectangle()
-                                        .fill(event.type.color.opacity(0.1))
-                                        .frame(width: 240, height: 240)
-                                    
-                                    Image(systemName: event.type.icon)
-                                        .font(.system(size: 80))
-                                        .foregroundColor(event.type.color)
-                                }
-                            
-                            }
-                            .frame(width: 240, height: 240)
-                            .padding(.bottom, 80)
-                            
-                            // 拍立得白底部分
-                            VStack(spacing: 4) {
-                                // 事件名称
-                                Text(event.name)
-                                    .font(.system(size: 20, weight: .bold))
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(2)
-                                    .padding(.horizontal, 10)
-                                    .padding(.top, 16)
-                                    .foregroundColor(.black)
-                                
-                                // 备注（如果有）
-                                if !event.notes.isEmpty {
-                                    Text(event.notes)
-                                        .font(.system(size: 12))
-                                        .italic()
-                                        .foregroundColor(.gray)
-                                        .multilineTextAlignment(.center)
-                                        .lineLimit(2)
-                                        .padding(.horizontal, 10)
-                                }
-                                
-                                // 剩余/已过天数 - 使用手写风格标签
-                                Text(event.daysRemaining == 0 ? "今天" : 
-                                     (event.isCountdown ? "还有\(abs(event.daysRemaining))天" : "已过\(abs(event.daysRemaining))天"))
-                                    .font(.custom("Noteworthy", size: 14))
-                                    .foregroundColor(event.isCountdown ? .green : .orange)
-                                    .padding(.top, 2)
-                                    .rotationEffect(.degrees(-2))
-                                
-                            }
-                            .frame(width: 240, height: 80)
-                            .background(Color.white)
-                        }
-                        .frame(width: 240, height: 360)
-                        .background(Color.white)
-                        .cornerRadius(8)
-                        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
-                        .rotationEffect(.degrees(2))
-                    }
-                    .padding(.top, 20)
+                    // 相框效果 - 使用辅助方法简化代码
+                    frameView
                     
                     // 日期信息
-                    Text(event.formattedDate)
+                    Text(currentEvent.formattedDate)
                         .font(.custom("Noteworthy", size: 16))
                         .foregroundColor(.gray)
                         .padding(.top, 8)
@@ -1365,7 +1392,7 @@ struct ChildEventDetailView: View {
             }
             .padding()
         }
-        .navigationTitle(event.name)
+        .navigationTitle(currentEvent.name)
         .navigationBarItems(
             trailing: Button(action: {
                 activeSheet = .editSheet
@@ -1380,25 +1407,39 @@ struct ChildEventDetailView: View {
                     selectedImage: $selectedImage,
                     selectedImageName: $selectedImageName,
                     showingPreview: $showingPreview,
-                    event: event,
+                    event: currentEvent,
                     eventStore: eventStore,
                     frameStyle: selectedFrameStyle
                 ) { imageName in
                     if let imageName = imageName {
                         // 更新事件的照片
-                        var updatedEvent = event
+                        var updatedEvent = currentEvent
                         updatedEvent.imageName = imageName
                         eventStore.updateEvent(updatedEvent)
+                        
+                        // 更新当前视图使用的事件数据
+                        self.currentEvent = updatedEvent
+                        
+                        // 发送通知，让所有使用此事件的视图都能刷新
+                        NotificationCenter.default.post(
+                            name: Notification.Name("EventUpdated"),
+                            object: nil,
+                            userInfo: ["eventId": event.id]
+                        )
                     }
                     activeSheet = nil
                 }
             case .framePicker:
-                FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: event, eventStore: eventStore)
+                FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: currentEvent, eventStore: eventStore)
                     .onDisappear {
+                        // 刷新当前事件，以防在帧选择器中已经更新了事件
+                        if let updatedEvent = eventStore.getEvent(by: currentEvent.id) {
+                            self.currentEvent = updatedEvent
+                        }
                         activeSheet = nil
                     }
             case .editSheet:
-                ChildEventEditView(eventStore: eventStore, childEvent: event)
+                ChildEventEditView(eventStore: eventStore, childEvent: currentEvent)
                     .onDisappear {
                         activeSheet = nil
                     }
@@ -1406,13 +1447,17 @@ struct ChildEventDetailView: View {
                 if let image = selectedImage {
                     PhotoPreviewView(
                         image: image,
-                        event: event,
+                        event: currentEvent,
                         eventStore: eventStore,
                         frameStyle: selectedFrameStyle
                     )
                     .onDisappear {
                         // 清除预览状态
                         showingPreview = false
+                        // 刷新当前事件，以防在预览视图中已经更新了事件
+                        if let updatedEvent = eventStore.getEvent(by: currentEvent.id) {
+                            self.currentEvent = updatedEvent
+                        }
                         activeSheet = nil
                     }
                 } else {
@@ -1459,6 +1504,197 @@ struct ChildEventDetailView: View {
             if newValue {
                 print("showingPreview 变为 true，设置 activeSheet = .preview")
                 activeSheet = .preview
+            }
+        }
+        .onAppear {
+            // 当视图出现时加载图片
+            if needsImageRefresh {
+                loadAndProcessImage()
+            }
+            
+            // 添加通知观察者，用于刷新图片缓存
+            NotificationCenter.default.addObserver(forName: Notification.Name("RefreshImageCache"), object: nil, queue: .main) { notification in
+                // 检查通知中的事件ID是否与当前事件ID匹配
+                if let notificationEventId = notification.userInfo?["eventId"] as? UUID,
+                   notificationEventId == currentEvent.id {
+                    // 清除当前图片，触发重新加载
+                    self.displayImage = nil
+                    self.needsImageRefresh = true
+                    self.loadAndProcessImage()
+                }
+            }
+            
+            // 添加事件更新通知观察者
+            NotificationCenter.default.addObserver(forName: Notification.Name("EventUpdated"), object: nil, queue: .main) { notification in
+                // 检查通知中的事件ID是否与当前事件ID匹配
+                if let notificationEventId = notification.userInfo?["eventId"] as? UUID,
+                   notificationEventId == event.id {
+                    // 刷新当前事件数据
+                    if let updatedEvent = eventStore.getEvent(by: event.id) {
+                        self.currentEvent = updatedEvent
+                        self.needsImageRefresh = true
+                        self.loadAndProcessImage()
+                    }
+                }
+            }
+        }
+        .onDisappear {
+            // 清除通知观察者
+            NotificationCenter.default.removeObserver(self, name: Notification.Name("RefreshImageCache"), object: nil)
+            NotificationCenter.default.removeObserver(self, name: Notification.Name("EventUpdated"), object: nil)
+        }
+    }
+    
+    // 相框视图辅助方法
+    private var frameView: some View {
+        ZStack {
+            // 相框背景 - 使用渐变色
+            RoundedRectangle(cornerRadius: 12)
+                .fill(selectedFrameStyle.backgroundGradient())
+                .frame(width: 270, height: 350)
+                .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
+            
+            // 相框边框
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(selectedFrameStyle.borderColor.opacity(0.3), lineWidth: 2)
+                .frame(width: 270, height: 350)
+            
+            // 拍立得照片容器
+            polaroidContainer
+        }
+        .padding(.top, 20)
+    }
+    
+    // 拍立得照片容器视图
+    private var polaroidContainer: some View {
+        ZStack(alignment: .bottom) {
+            // 照片部分
+            photoView
+                .frame(width: 240, height: 240)
+                .padding(.bottom, 80)
+            
+            // 拍立得白底部分
+            VStack(spacing: 4) {
+                // 事件名称
+                Text(currentEvent.name)
+                    .font(.system(size: 20, weight: .bold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 16)
+                    .foregroundColor(.black)
+                
+                // 备注（如果有）
+                if !currentEvent.notes.isEmpty {
+                    Text(currentEvent.notes)
+                        .font(.system(size: 12))
+                        .italic()
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.horizontal, 10)
+                }
+                
+                // 剩余/已过天数 - 使用手写风格标签
+                Text(currentEvent.daysRemaining == 0 ? "今天" : 
+                     (currentEvent.isCountdown ? "还有\(abs(currentEvent.daysRemaining))天" : "已过\(abs(currentEvent.daysRemaining))天"))
+                    .font(.custom("Noteworthy", size: 14))
+                    .foregroundColor(currentEvent.isCountdown ? .green : .orange)
+                    .padding(.top, 2)
+                    .rotationEffect(.degrees(-2))
+            }
+            .frame(width: 240, height: 80)
+            .background(Color.white)
+        }
+        .frame(width: 240, height: 360)
+        .background(Color.white)
+        .cornerRadius(8)
+        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        )
+        .rotationEffect(.degrees(2))
+    }
+    
+    // 照片视图辅助方法 - 使用currentEvent而不是event
+    private var photoView: some View {
+        ZStack {
+            if let imageName = currentEvent.imageName, !imageName.isEmpty {
+                if let image = displayImage {
+                    // 如果有处理后的图片，直接显示
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 240, height: 240)
+                } else if isImageLoading {
+                    // 显示加载中
+                    ProgressView()
+                        .frame(width: 240, height: 240)
+                } else {
+                    // 显示占位图标并触发加载
+                    Rectangle()
+                        .fill(currentEvent.type.color.opacity(0.1))
+                        .frame(width: 240, height: 240)
+                    
+                    Image(systemName: "photo")
+                        .font(.system(size: 60))
+                        .foregroundColor(currentEvent.type.color)
+                        .onAppear {
+                            loadAndProcessImage()
+                        }
+                }
+            } else {
+                // 默认图标背景
+                Rectangle()
+                    .fill(currentEvent.type.color.opacity(0.1))
+                    .frame(width: 240, height: 240)
+                
+                Image(systemName: currentEvent.type.icon)
+                    .font(.system(size: 80))
+                    .foregroundColor(currentEvent.type.color)
+            }
+        }
+    }
+    
+    // 加载和处理图片的方法
+    private func loadAndProcessImage() {
+        guard let imageName = currentEvent.imageName, !imageName.isEmpty else { return }
+        
+        isImageLoading = true
+        
+        // 使用后台线程加载图片
+        DispatchQueue.global().async {
+            // 从文档目录加载图片
+            if let image = self.loadImageFromDocumentDirectory(named: imageName) {
+                // 检查是否应用相框样式
+                var finalImage: UIImage? = nil
+                
+                if let frameStyleName = self.currentEvent.frameStyleName,
+                   let frameStyle = FrameStyle(rawValue: frameStyleName),
+                   frameStyle.usesMaskOrFrame {
+                    finalImage = TemplateImageGenerator.shared.generateTemplateImage(
+                        originalImage: image,
+                        frameStyle: frameStyle, 
+                        scale: self.currentEvent.imageScale,
+                        offset: CGSize(width: self.currentEvent.imageOffsetX, height: self.currentEvent.imageOffsetY)
+                    )
+                } else {
+                    // 使用原始图片
+                    finalImage = image
+                }
+                
+                // 切换回主线程更新UI
+                DispatchQueue.main.async {
+                    self.displayImage = finalImage
+                    self.isImageLoading = false
+                    self.needsImageRefresh = false
+                }
+            } else {
+                // 处理加载失败的情况
+                DispatchQueue.main.async {
+                    self.isImageLoading = false
+                }
             }
         }
     }
