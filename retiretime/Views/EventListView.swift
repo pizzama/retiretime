@@ -12,23 +12,9 @@ struct EventListView: View {
     @State private var selectedCategory = "全部"
     @State private var showingAddEvent = false
     
-    // 缓存变量
-    @State private var filteredEventsCache: [String: [Event]] = [:]
-    @State private var categoriesWithEventsCache: [String: [String]] = [:]
+    // 保留图片缓存
     @State private var imageCache: [String: UIImage] = [:]
     @State private var processedImageCache: [String: UIImage] = [:]
-    
-    // 清除所有缓存
-    private func clearCaches() {
-        // 清除事件数据缓存
-        filteredEventsCache = [:]
-        categoriesWithEventsCache = [:]
-        
-        // 保留图片缓存，因为图片不会频繁变化
-        // 如果内存压力大，可以考虑也清除图片缓存
-        // imageCache = [:]
-        // processedImageCache = [:]
-    }
     
     var body: some View {
         NavigationView {
@@ -55,14 +41,41 @@ struct EventListView: View {
                 EventFormView(eventStore: eventStore)
             }
             .onAppear {
-                // 当视图出现时预加载数据
-                preloadData()
+                // 刷新事件列表
+                refreshEvents()
+                
+                // 添加通知观察者
+                NotificationCenter.default.addObserver(
+                    forName: Notification.Name("EventUpdated"),
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    refreshEvents()
+                }
+                
+                // 添加缓存清除通知观察者
+                NotificationCenter.default.addObserver(
+                    forName: Notification.Name("ClearEventCache"),
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    // 刷新事件列表
+                    print("收到缓存清除通知，刷新事件列表")
+                    self.refreshEvents()
+                }
             }
-            .onChange(of: eventStore.events) { _ in
-                // 当事件数据变化时清除缓存
-                clearCaches()
+            .onDisappear {
+                // 移除通知观察者
+                NotificationCenter.default.removeObserver(self, name: Notification.Name("EventUpdated"), object: nil)
+                NotificationCenter.default.removeObserver(self, name: Notification.Name("ClearEventCache"), object: nil)
             }
         }
+    }
+    
+    // 刷新事件列表
+    private func refreshEvents() {
+        // 强制刷新UI
+        eventStore.objectWillChange.send()
     }
     
     // 当前事件头部视图
@@ -171,67 +184,15 @@ struct EventListView: View {
         }
     }
     
-    // 获取包含事件的分类（带缓存）
+    // 获取包含事件的分类
     private func getCategoriesWithEvents(filter category: String) -> [String] {
-        // 检查缓存
-        if let cachedCategories = categoriesWithEventsCache[category] {
-            return cachedCategories
-        }
-        
-        // 如果缓存中没有，则从eventStore获取
-        let categories = eventStore.categoriesWithEvents(filter: category)
-        
-        // 更新缓存
-        var updatedCache = categoriesWithEventsCache
-        updatedCache[category] = categories
-        categoriesWithEventsCache = updatedCache
-        
-        return categories
+        return eventStore.categoriesWithEvents(filter: category)
     }
-
-// 获取过滤后的事件（带缓存）
-private func getFilteredEvents(by category: String) -> [Event] {
-    // 检查缓存
-    if let cachedEvents = filteredEventsCache[category] {
-        return cachedEvents
-    }
-    
-    // 如果缓存中没有，则从eventStore获取
-    let events = eventStore.filteredEvents(by: category)
-    
-    // 更新缓存
-    var updatedCache = filteredEventsCache
-    updatedCache[category] = events
-    filteredEventsCache = updatedCache
-    
-    return events
-}
-
-// 获取分类中的事件（带缓存）
-private func getEventsInCategory(_ category: String, filter filterCategory: String) -> [Event] {
-    // 创建缓存键
-    let cacheKey = "\(category)_\(filterCategory)"
-    
-    // 检查缓存
-    if let cachedEvents = filteredEventsCache[cacheKey] {
-        return cachedEvents
-    }
-    
-    // 如果缓存中没有，则从eventStore获取
-    let events = eventStore.eventsInCategory(category, filter: filterCategory)
-    
-    // 更新缓存
-    var updatedCache = filteredEventsCache
-    updatedCache[cacheKey] = events
-    filteredEventsCache = updatedCache
-    
-    return events
-}
     
     // 所有事件的网格视图
     private var allEventsGrid: some View {
-        // 获取所有事件（当选择"全部"分类时，使用缓存）
-        let allEvents = getFilteredEvents(by: selectedCategory)
+        // 获取所有事件（当选择"全部"分类时，直接从eventStore获取）
+        let allEvents = eventStore.filteredEvents(by: selectedCategory)
         
         return VStack(alignment: .leading) {
             LazyVGrid(columns: [
@@ -252,8 +213,8 @@ private func getEventsInCategory(_ category: String, filter filterCategory: Stri
     
     // 事件网格视图
     private func eventGrid(for category: String) -> some View {
-        // 获取该分类下的事件（使用缓存）
-        let events = getEventsInCategory(category, filter: selectedCategory)
+        // 获取该分类下的事件（直接从eventStore获取）
+        let events = eventStore.eventsInCategory(category, filter: selectedCategory)
         
         return VStack(alignment: .leading) {
             LazyVGrid(columns: [
@@ -487,19 +448,6 @@ private func getEventsInCategory(_ category: String, filter filterCategory: Stri
             cacheQueue.async(flags: .barrier) {
                 self.cache.removeAllObjects()
             }
-        }
-    }
-    
-    // 预加载数据
-    private func preloadData() {
-        // 预加载所有分类的事件数据
-        _ = getFilteredEvents(by: "全部")
-        
-        // 预加载所有分类
-        let allCategories = eventStore.categories
-        for category in allCategories {
-            _ = getCategoriesWithEvents(filter: category)
-            _ = getFilteredEvents(by: category)
         }
     }
 }

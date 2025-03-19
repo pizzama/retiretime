@@ -14,6 +14,23 @@ class EventStore: ObservableObject {
     private let saveKey = "savedEvents" // 确保与Widget中使用的键名完全一致
     private let userDefaults: UserDefaults
     
+    // 缓存变量
+    private var filteredEventsCache: [String: [Event]] = [:]
+    private var categoriesWithEventsCache: [String: [String]] = [:]
+    
+    // 清除所有缓存
+    private func clearCaches() {
+        // 清除事件数据缓存
+        filteredEventsCache = [:]
+        categoriesWithEventsCache = [:]
+        
+        // 发送缓存清除通知
+        NotificationCenter.default.post(
+            name: Notification.Name("ClearEventCache"),
+            object: nil
+        )
+    }
+    
     init() {
         // 使用App Group的UserDefaults实例，确保Widget和主应用可以共享数据
         if let groupUserDefaults = UserDefaults(suiteName: "group.com.fenghua.retiretime") {
@@ -68,24 +85,41 @@ class EventStore: ObservableObject {
     func addEvent(_ event: Event) {
         events.append(event)
         saveEvents()
+        
+        // 更新缓存而不是全部清除
+        updateCachesForNewEvent(event)
+        
         WidgetCenter.shared.reloadAllTimelines() // 刷新所有 Widget
         
         // 如果启用了提醒，则调度通知
         if event.reminderEnabled {
             NotificationManager.shared.scheduleNotification(for: event)
         }
+        
+        // 发送事件更新通知
+        NotificationCenter.default.post(
+            name: Notification.Name("EventUpdated"),
+            object: nil,
+            userInfo: ["eventId": event.id]
+        )
     }
     
     // 更新事件
     func updateEvent(_ event: Event) {
         if let index = events.firstIndex(where: { $0.id == event.id }) {
+            let oldEvent = events[index]
+            
             // 移除旧事件的通知
-            if events[index].reminderEnabled {
-                NotificationManager.shared.removeNotifications(for: events[index])
+            if oldEvent.reminderEnabled {
+                NotificationManager.shared.removeNotifications(for: oldEvent)
             }
             
             events[index] = event
             saveEvents()
+            
+            // 更新缓存而不是全部清除
+            updateCachesForUpdatedEvent(oldEvent, newEvent: event)
+            
             WidgetCenter.shared.reloadAllTimelines() // 刷新所有 Widget
             
             // 如果启用了提醒，则调度新通知
@@ -96,6 +130,126 @@ class EventStore: ObservableObject {
             // 如果是重复事件且已经过期，生成下一次事件
             if event.repeatType != .none && event.daysRemaining < 0 {
                 generateNextOccurrence(for: event)
+            }
+            
+            // 发送事件更新通知
+            NotificationCenter.default.post(
+                name: Notification.Name("EventUpdated"),
+                object: nil,
+                userInfo: ["eventId": event.id]
+            )
+        }
+    }
+    
+    // 新增方法 - 更新缓存以包含新事件
+    private func updateCachesForNewEvent(_ newEvent: Event) {
+        // 仅处理非子事件
+        guard newEvent.parentId == nil else { 
+            clearCaches()  // 子事件仍然清除所有缓存
+            return 
+        }
+        
+        // 更新按分类筛选的缓存
+        let category = newEvent.category
+        let allCategory = "全部"
+        
+        // 更新"全部"分类的缓存
+        if var events = filteredEventsCache[allCategory] {
+            events.append(newEvent)
+            events.sort { $0.daysRemaining < $1.daysRemaining }
+            filteredEventsCache[allCategory] = events
+        }
+        
+        // 更新事件所属分类的缓存
+        if var events = filteredEventsCache[category] {
+            events.append(newEvent)
+            events.sort { $0.daysRemaining < $1.daysRemaining }
+            filteredEventsCache[category] = events
+        }
+        
+        // 更新包含事件的分类缓存
+        if var categories = categoriesWithEventsCache[allCategory] {
+            if !categories.contains(category) {
+                categories.append(category)
+                categories.sort()
+                categoriesWithEventsCache[allCategory] = categories
+            }
+        }
+        
+        // 更新分类内事件缓存
+        let categoryFilterKey = "\(category)_\(category)"
+        let allCategoryFilterKey = "\(category)_\(allCategory)"
+        
+        if var events = filteredEventsCache[categoryFilterKey] {
+            events.append(newEvent)
+            events.sort { $0.daysRemaining < $1.daysRemaining }
+            filteredEventsCache[categoryFilterKey] = events
+        }
+        
+        if var events = filteredEventsCache[allCategoryFilterKey] {
+            events.append(newEvent)
+            events.sort { $0.daysRemaining < $1.daysRemaining }
+            filteredEventsCache[allCategoryFilterKey] = events
+        }
+    }
+    
+    // 新增方法 - 更新缓存以反映已更新的事件
+    private func updateCachesForUpdatedEvent(_ oldEvent: Event, newEvent: Event) {
+        // 仅处理非子事件
+        guard oldEvent.parentId == nil && newEvent.parentId == nil else { 
+            clearCaches()  // 子事件仍然清除所有缓存
+            return 
+        }
+        
+        let oldCategory = oldEvent.category
+        let newCategory = newEvent.category
+        let categoryChanged = oldCategory != newCategory
+        
+        // 如果分类发生变化，处理更复杂，清除相关缓存
+        if categoryChanged {
+            clearCaches()
+            return
+        }
+        
+        // 分类未变化，只需替换事件
+        let category = newEvent.category
+        let allCategory = "全部"
+        
+        // 更新"全部"分类的缓存
+        if var events = filteredEventsCache[allCategory] {
+            if let index = events.firstIndex(where: { $0.id == newEvent.id }) {
+                events[index] = newEvent
+                events.sort { $0.daysRemaining < $1.daysRemaining }
+                filteredEventsCache[allCategory] = events
+            }
+        }
+        
+        // 更新事件所属分类的缓存
+        if var events = filteredEventsCache[category] {
+            if let index = events.firstIndex(where: { $0.id == newEvent.id }) {
+                events[index] = newEvent
+                events.sort { $0.daysRemaining < $1.daysRemaining }
+                filteredEventsCache[category] = events
+            }
+        }
+        
+        // 更新分类内事件缓存
+        let categoryFilterKey = "\(category)_\(category)"
+        let allCategoryFilterKey = "\(category)_\(allCategory)"
+        
+        if var events = filteredEventsCache[categoryFilterKey] {
+            if let index = events.firstIndex(where: { $0.id == newEvent.id }) {
+                events[index] = newEvent
+                events.sort { $0.daysRemaining < $1.daysRemaining }
+                filteredEventsCache[categoryFilterKey] = events
+            }
+        }
+        
+        if var events = filteredEventsCache[allCategoryFilterKey] {
+            if let index = events.firstIndex(where: { $0.id == newEvent.id }) {
+                events[index] = newEvent
+                events.sort { $0.daysRemaining < $1.daysRemaining }
+                filteredEventsCache[allCategoryFilterKey] = events
             }
         }
     }
@@ -109,7 +263,14 @@ class EventStore: ObservableObject {
         
         events.removeAll { $0.id == event.id }
         saveEvents()
+        clearCaches() // 清除缓存
         WidgetCenter.shared.reloadAllTimelines() // 刷新所有 Widget
+        
+        // 发送缓存清除通知
+        NotificationCenter.default.post(
+            name: Notification.Name("ClearEventCache"),
+            object: nil
+        )
     }
     
     // 获取所有分类
@@ -119,46 +280,87 @@ class EventStore: ObservableObject {
         return ["全部"] + uniqueCategories
     }
     
-    // 根据分类筛选事件
+    // 根据分类筛选事件 (带缓存)
     func filteredEvents(by category: String) -> [Event] {
+        // 检查缓存
+        if let cachedEvents = filteredEventsCache[category] {
+            return cachedEvents
+        }
+        
+        // 缓存未命中，计算结果
+        var result: [Event]
+        
         if category == "全部" {
             // 只返回非子事件
-            return events.filter { $0.parentId == nil }
+            result = events.filter { $0.parentId == nil }
                 .sorted { $0.daysRemaining < $1.daysRemaining }
         } else {
             // 只返回指定分类的非子事件
-            return events.filter { $0.category == category && $0.parentId == nil }
+            result = events.filter { $0.category == category && $0.parentId == nil }
                 .sorted { $0.daysRemaining < $1.daysRemaining }
         }
+        
+        // 更新缓存
+        filteredEventsCache[category] = result
+        
+        return result
     }
     
-    // 获取包含事件的分类列表（按照筛选条件）
+    // 获取包含事件的分类列表（带缓存）
     func categoriesWithEvents(filter category: String) -> [String] {
+        // 检查缓存
+        if let cachedCategories = categoriesWithEventsCache[category] {
+            return cachedCategories
+        }
+        
+        // 缓存未命中，计算结果
+        var result: [String]
+        
         if category == "全部" {
             // 获取所有包含非子事件的分类
             let eventCategories = events.filter { $0.parentId == nil }.map { $0.category }
-            let uniqueCategories = Array(Set(eventCategories)).sorted()
-            return uniqueCategories
+            result = Array(Set(eventCategories)).sorted()
         } else {
             // 如果已经按分类筛选，则只返回该分类
-            return [category]
+            result = [category]
         }
+        
+        // 更新缓存
+        categoriesWithEventsCache[category] = result
+        
+        return result
     }
     
-    // 获取指定分类中的事件（按照筛选条件）
+    // 获取指定分类中的事件（带缓存）
     func eventsInCategory(_ category: String, filter filterCategory: String) -> [Event] {
+        // 创建缓存键
+        let cacheKey = "\(category)_\(filterCategory)"
+        
+        // 检查缓存
+        if let cachedEvents = filteredEventsCache[cacheKey] {
+            return cachedEvents
+        }
+        
+        // 缓存未命中，计算结果
+        var result: [Event]
+        
         if filterCategory == "全部" {
             // 返回指定分类中的所有非子事件
-            return events.filter { $0.category == category && $0.parentId == nil }
+            result = events.filter { $0.category == category && $0.parentId == nil }
                 .sorted { $0.daysRemaining < $1.daysRemaining }
         } else if category == filterCategory {
             // 如果筛选分类与当前分类相同，返回该分类中的所有非子事件
-            return events.filter { $0.category == category && $0.parentId == nil }
+            result = events.filter { $0.category == category && $0.parentId == nil }
                 .sorted { $0.daysRemaining < $1.daysRemaining }
         } else {
             // 如果筛选分类与当前分类不同，返回空数组
-            return []
+            result = []
         }
+        
+        // 更新缓存
+        filteredEventsCache[cacheKey] = result
+        
+        return result
     }
     
     // 按类型筛选事件
