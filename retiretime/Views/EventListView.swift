@@ -94,7 +94,7 @@ struct EventListView: View {
                             ZStack {
                                 if let imageName = currentEvent.imageName, !imageName.isEmpty {
                                     // 使用LazyImage组件
-                                    LazyImage(event: currentEvent)
+                                    LazyImage(event: currentEvent, eventStore: eventStore)
                                         .frame(width: 80, height: 80)
                                 } else {
                                     // 显示默认图标背景
@@ -240,7 +240,7 @@ struct EventListView: View {
             ZStack {
                 if let imageName = event.imageName, !imageName.isEmpty {
                     // 使用LazyImage组件延迟加载图片
-                    LazyImage(event: event)
+                    LazyImage(event: event, eventStore: eventStore)
                         .frame(width: 100, height: 100)
                 } else {
                     // 显示默认图标背景
@@ -284,6 +284,7 @@ struct EventListView: View {
     // 懒加载图片组件
     struct LazyImage: View {
         let event: Event
+        @ObservedObject var eventStore: EventStore
         
         @State private var image: UIImage?
         @State private var isLoading = false
@@ -326,7 +327,7 @@ struct EventListView: View {
             isLoading = true
             
             // 检查全局图片缓存
-            if let cachedImage = ImageCache.shared.getImage(for: imageName, with: event) {
+            if let cachedImage = eventStore.imageCache.getImage(for: imageName, with: event) {
                 self.image = cachedImage
                 self.isLoading = false
                 return
@@ -355,7 +356,7 @@ struct EventListView: View {
                     
                     // 缓存处理后的图片
                     if let processedImage = processedImage {
-                        ImageCache.shared.setImage(processedImage, for: imageName, with: event)
+                        eventStore.imageCache.setImage(processedImage, for: imageName, with: event)
                         
                         // 在主线程更新UI
                         DispatchQueue.main.async {
@@ -385,68 +386,6 @@ struct EventListView: View {
             } catch {
                 print("加载图片失败: \(error)")
                 return nil
-            }
-        }
-    }
-    
-    // 全局图片缓存
-    class ImageCache {
-        static let shared = ImageCache()
-        
-        private var cache = NSCache<NSString, UIImage>()
-        private let cacheQueue = DispatchQueue(label: "com.retiretime.imageCacheQueue", attributes: .concurrent)
-        
-        private init() {
-            // 设置缓存限制
-            cache.countLimit = 100 // 最多缓存100张图片
-            cache.totalCostLimit = 50 * 1024 * 1024 // 50MB
-            
-            // 监听内存警告
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(clearCache),
-                name: UIApplication.didReceiveMemoryWarningNotification,
-                object: nil
-            )
-        }
-        
-        deinit {
-            NotificationCenter.default.removeObserver(self)
-        }
-        
-        // 创建缓存键
-        private func createCacheKey(for imageName: String, with event: Event) -> NSString {
-            let key = "\(imageName)_\(event.frameStyleName ?? "")_\(event.imageScale)_\(event.imageOffsetX)_\(event.imageOffsetY)"
-            return key as NSString
-        }
-        
-        // 获取缓存图片
-        func getImage(for imageName: String, with event: Event) -> UIImage? {
-            let key = createCacheKey(for: imageName, with: event)
-            var image: UIImage?
-            
-            cacheQueue.sync {
-                image = cache.object(forKey: key)
-            }
-            
-            return image
-        }
-        
-        // 设置缓存图片
-        func setImage(_ image: UIImage, for imageName: String, with event: Event) {
-            let key = createCacheKey(for: imageName, with: event)
-            
-            cacheQueue.async(flags: .barrier) {
-                // 估算图片大小作为cost
-                let cost = Int(image.size.width * image.size.height * 4) // 4 bytes per pixel (RGBA)
-                self.cache.setObject(image, forKey: key, cost: cost)
-            }
-        }
-        
-        // 清除缓存
-        @objc func clearCache() {
-            cacheQueue.async(flags: .barrier) {
-                self.cache.removeAllObjects()
             }
         }
     }

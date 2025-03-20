@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 import WidgetKit
+import UIKit
 
 class EventStore: ObservableObject {
     @Published var events: [Event] = []
@@ -18,11 +19,78 @@ class EventStore: ObservableObject {
     private var filteredEventsCache: [String: [Event]] = [:]
     private var categoriesWithEventsCache: [String: [String]] = [:]
     
+    // 图片缓存管理
+    let imageCache = ImageCache()
+    
+    // 图片缓存类
+    class ImageCache {
+        private var cache = NSCache<NSString, UIImage>()
+        private let cacheQueue = DispatchQueue(label: "com.retiretime.imageCacheQueue", attributes: .concurrent)
+        
+        init() {
+            // 设置缓存限制
+            cache.countLimit = 100 // 最多缓存100张图片
+            cache.totalCostLimit = 50 * 1024 * 1024 // 50MB
+            
+            // 监听内存警告
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(clearCache),
+                name: UIApplication.didReceiveMemoryWarningNotification,
+                object: nil
+            )
+        }
+        
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+        
+        // 创建缓存键
+        func createCacheKey(for imageName: String, with event: Event) -> NSString {
+            let key = "\(imageName)_\(event.frameStyleName ?? "")_\(event.imageScale)_\(event.imageOffsetX)_\(event.imageOffsetY)"
+            return key as NSString
+        }
+        
+        // 获取缓存图片
+        func getImage(for imageName: String, with event: Event) -> UIImage? {
+            let key = createCacheKey(for: imageName, with: event)
+            var image: UIImage?
+            
+            cacheQueue.sync {
+                image = cache.object(forKey: key)
+            }
+            
+            return image
+        }
+        
+        // 设置缓存图片
+        func setImage(_ image: UIImage, for imageName: String, with event: Event) {
+            let key = createCacheKey(for: imageName, with: event)
+            
+            cacheQueue.async(flags: .barrier) {
+                // 估算图片大小作为cost
+                let cost = Int(image.size.width * image.size.height * 4) // 4 bytes per pixel (RGBA)
+                self.cache.setObject(image, forKey: key, cost: cost)
+            }
+        }
+        
+        // 清除缓存
+        @objc func clearCache() {
+            cacheQueue.async(flags: .barrier) {
+                self.cache.removeAllObjects()
+                print("图片缓存已清除")
+            }
+        }
+    }
+    
     // 清除所有缓存
     private func clearCaches() {
         // 清除事件数据缓存
         filteredEventsCache = [:]
         categoriesWithEventsCache = [:]
+        
+        // 清除图片缓存
+        imageCache.clearCache()
         
         // 发送缓存清除通知
         NotificationCenter.default.post(

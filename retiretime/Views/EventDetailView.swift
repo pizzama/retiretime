@@ -122,7 +122,7 @@ enum FrameStyle: String, CaseIterable, Identifiable {
 
 struct EventDetailView: View {
     let event: Event
-    @State private var currentEvent: Event
+    @ObservedObject var eventStore: EventStore
     @State private var selectedFrameStyle: FrameStyle = .template
     @State private var selectedTemplateType: DecorationType = .polaroid
     @State private var showingEditSheet = false
@@ -131,15 +131,20 @@ struct EventDetailView: View {
     @State private var showingChildEventForm = false
     @State private var selectedImage: UIImage? = nil
     @State private var selectedImageName: String? = nil
-    let eventStore: EventStore
     @State private var childEvents: [Event] = []
     @State private var showingPreview = false
     @State private var activeSheet: ActiveSheet? = nil
+    @State private var eventId: UUID
     
     // 添加照片刷新相关状态变量
     @State private var displayImage: UIImage? = nil
     @State private var isImageLoading = false
     @State private var needsImageRefresh = true
+    
+    // 始终从eventStore获取最新的事件数据
+    var currentEvent: Event {
+        eventStore.getEvent(by: eventId) ?? event
+    }
     
     enum ActiveSheet: Identifiable {
         case photosPicker
@@ -162,9 +167,7 @@ struct EventDetailView: View {
     init(event: Event, eventStore: EventStore) {
         self.event = event
         self.eventStore = eventStore
-        
-        // 初始化currentEvent
-        _currentEvent = State(initialValue: event)
+        self._eventId = State(initialValue: event.id)
         
         // 根据event中保存的frameStyleName设置初始框样式
         if let frameStyleName = event.frameStyleName, let style = FrameStyle(rawValue: frameStyleName) {
@@ -282,7 +285,7 @@ struct EventDetailView: View {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                             ForEach(childEvents) { childEvent in
                                 NavigationLink(destination: ChildEventDetailView(event: childEvent, eventStore: eventStore)) {
-                                    ChildEventCard(event: childEvent)
+                                    ChildEventCard(event: childEvent, eventStore: eventStore)
                                 }
                             }
                         }
@@ -319,9 +322,6 @@ struct EventDetailView: View {
                         updatedEvent.imageName = imageName
                         eventStore.updateEvent(updatedEvent)
                         
-                        // 更新当前视图使用的事件数据
-                        self.currentEvent = updatedEvent
-                        
                         // 发送通知，让所有使用此事件的视图都能刷新
                         NotificationCenter.default.post(
                             name: Notification.Name("EventUpdated"),
@@ -334,10 +334,7 @@ struct EventDetailView: View {
             case .framePicker:
                 FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: currentEvent, eventStore: eventStore)
                     .onDisappear {
-                        // 刷新当前事件，以防在帧选择器中已经更新了事件
-                        if let updatedEvent = eventStore.getEvent(by: currentEvent.id) {
-                            self.currentEvent = updatedEvent
-                        }
+                        // 不再需要刷新currentEvent，因为它现在是计算属性
                         activeSheet = nil
                     }
             case .editSheet:
@@ -363,10 +360,7 @@ struct EventDetailView: View {
                     .onDisappear {
                         // 清除预览状态
                         showingPreview = false
-                        // 刷新当前事件，以防在预览视图中已经更新了事件
-                        if let updatedEvent = eventStore.getEvent(by: currentEvent.id) {
-                            self.currentEvent = updatedEvent
-                        }
+                        // 不再需要刷新currentEvent，因为它现在是计算属性
                         activeSheet = nil
                     }
                 } else {
@@ -392,24 +386,20 @@ struct EventDetailView: View {
             }
         }
         .onAppear {
-            // 刷新当前事件的数据
-            if let updatedEvent = eventStore.getEvent(by: event.id) {
-                self.currentEvent = updatedEvent
+            // 加载最新的图片
+            if needsImageRefresh {
+                loadAndProcessImage()
             }
             
             // 刷新子事件列表
             childEvents = eventStore.childEvents(for: currentEvent)
             
-            // 当视图出现时加载图片
-            if needsImageRefresh {
-                loadAndProcessImage()
-            }
-            
             // 添加通知观察者，用于刷新图片缓存
             NotificationCenter.default.addObserver(forName: Notification.Name("RefreshImageCache"), object: nil, queue: .main) { notification in
                 // 检查通知中的事件ID是否与当前事件ID匹配
                 if let notificationEventId = notification.userInfo?["eventId"] as? UUID,
-                   notificationEventId == currentEvent.id {
+                   notificationEventId == self.eventId {
+                    print("收到图片缓存刷新通知，eventId: \(notificationEventId)")
                     // 清除当前图片，触发重新加载
                     self.displayImage = nil
                     self.needsImageRefresh = true
@@ -417,20 +407,24 @@ struct EventDetailView: View {
                 }
             }
             
-            // 添加通知监听，以便在事件数据更新时刷新UI
-            NotificationCenter.default.addObserver(
-                forName: Notification.Name("EventUpdated"),
-                object: nil,
-                queue: .main
-            ) { notification in
-                if let userInfo = notification.userInfo,
-                   let eventId = userInfo["eventId"] as? UUID,
-                   eventId == event.id,
-                   let updatedEvent = eventStore.getEvent(by: eventId) {
-                    print("事件详情页面：收到事件更新通知，事件ID: \(eventId)")
-                    self.currentEvent = updatedEvent
+            // 添加事件更新通知观察者
+            NotificationCenter.default.addObserver(forName: Notification.Name("EventUpdated"), object: nil, queue: .main) { notification in
+                // 检查通知中的事件ID是否与当前事件ID匹配
+                if let notificationEventId = notification.userInfo?["eventId"] as? UUID,
+                   notificationEventId == self.eventId {
+                    print("收到事件更新通知，eventId: \(notificationEventId)，当前图片: \(self.currentEvent.imageName ?? "无")")
+                    
+                    // 由于currentEvent现在是计算属性，会自动从eventStore获取最新数据，无需手动更新
                     self.needsImageRefresh = true
-                    self.loadAndProcessImage()
+                    self.displayImage = nil
+                    
+                    // 刷新子事件列表
+                    self.childEvents = self.eventStore.childEvents(for: self.currentEvent)
+                    
+                    // 立即重新加载图片
+                    DispatchQueue.main.async {
+                        self.loadAndProcessImage()
+                    }
                 }
             }
         }
@@ -441,9 +435,8 @@ struct EventDetailView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             // 当应用从后台回到前台时刷新子事件列表和当前事件数据
-            if let updatedEvent = eventStore.getEvent(by: event.id) {
-                self.currentEvent = updatedEvent
-            }
+            // 不需要更新currentEvent，因为它是计算属性
+            // 刷新子事件列表
             childEvents = eventStore.childEvents(for: currentEvent)
         }
     }
@@ -648,25 +641,45 @@ struct EventDetailView: View {
     
     // 加载和处理图片的方法
     private func loadAndProcessImage() {
-        guard let imageName = currentEvent.imageName, !imageName.isEmpty else { return }
+        // 每次都从eventStore获取最新数据
+        let event = currentEvent
+        guard let imageName = event.imageName, !imageName.isEmpty else { return }
         
+        print("开始加载图片: \(imageName)，事件ID: \(event.id)")
         isImageLoading = true
         
+        // 先检查缓存
+        if let cachedImage = eventStore.imageCache.getImage(for: imageName, with: event) {
+            print("从缓存加载图片: \(imageName)")
+            DispatchQueue.main.async {
+                self.displayImage = cachedImage
+                self.isImageLoading = false
+                self.needsImageRefresh = false
+            }
+            return
+        }
+        
         // 使用后台线程加载图片
-        DispatchQueue.global().async {
+        DispatchQueue.global(qos: .userInitiated).async {
             // 从文档目录加载图片
             if let image = self.loadImageFromDocumentDirectory(named: imageName) {
+                print("从文档目录加载图片: \(imageName)")
+                
+                // 获取最新的事件数据进行处理
+                let currentEvent = self.currentEvent
+                
                 // 检查是否应用相框样式
                 var finalImage: UIImage? = nil
                 
-                if let frameStyleName = self.currentEvent.frameStyleName,
+                if let frameStyleName = currentEvent.frameStyleName,
                    let frameStyle = FrameStyle(rawValue: frameStyleName),
                    frameStyle.usesMaskOrFrame {
+                    print("应用相框样式: \(frameStyleName)")
                     finalImage = TemplateImageGenerator.shared.generateTemplateImage(
                         originalImage: image,
                         frameStyle: frameStyle, 
-                        scale: self.currentEvent.imageScale,
-                        offset: CGSize(width: self.currentEvent.imageOffsetX, height: self.currentEvent.imageOffsetY)
+                        scale: currentEvent.imageScale,
+                        offset: CGSize(width: currentEvent.imageOffsetX, height: currentEvent.imageOffsetY)
                     )
                 } else {
                     // 使用原始图片
@@ -675,7 +688,14 @@ struct EventDetailView: View {
                 
                 // 切换回主线程更新UI
                 DispatchQueue.main.async {
-                    self.displayImage = finalImage
+                    if let finalImage = finalImage {
+                        // 缓存处理后的图片
+                        if let imageName = self.currentEvent.imageName {
+                            self.eventStore.imageCache.setImage(finalImage, for: imageName, with: self.currentEvent)
+                        }
+                        self.displayImage = finalImage
+                        print("成功加载并显示图片: \(imageName)")
+                    }
                     self.isImageLoading = false
                     self.needsImageRefresh = false
                 }
@@ -683,6 +703,7 @@ struct EventDetailView: View {
                 // 处理加载失败的情况
                 DispatchQueue.main.async {
                     self.isImageLoading = false
+                    print("加载图片失败: \(imageName)")
                 }
             }
         }
@@ -973,20 +994,46 @@ struct PhotoPreviewView: View {
                     primaryButton: .default(Text("保存")) {
                         // 保存照片和调整信息
                         if let imageName = saveImageWithAdjustments() {
-                            var updatedEvent = event
-                            updatedEvent.imageName = imageName
-                            // 保存缩放和位置信息
-                            updatedEvent.imageScale = imageScale
-                            updatedEvent.imageOffsetX = imageOffset.width
-                            updatedEvent.imageOffsetY = imageOffset.height
-                            eventStore.updateEvent(updatedEvent)
+                            print("成功保存图片: \(imageName), 缩放: \(imageScale), 偏移: \(imageOffset)")
                             
-                            // 发送通知，让所有使用此事件的视图都能刷新
-                            NotificationCenter.default.post(
-                                name: Notification.Name("EventUpdated"),
-                                object: nil,
-                                userInfo: ["eventId": event.id]
-                            )
+                            // 获取最新的事件数据再更新
+                            if var updatedEvent = eventStore.getEvent(by: event.id) {
+                                updatedEvent.imageName = imageName
+                                updatedEvent.imageScale = imageScale
+                                updatedEvent.imageOffsetX = imageOffset.width
+                                updatedEvent.imageOffsetY = imageOffset.height
+                                updatedEvent.frameStyleName = frameStyle.rawValue
+                                
+                                // 更新事件存储
+                                eventStore.updateEvent(updatedEvent)
+                                print("update event::\(updatedEvent.id)::\(updatedEvent.imageName ?? "无")")
+                                
+                                // 发送通知，让所有使用此事件的视图都能刷新
+                                NotificationCenter.default.post(
+                                    name: Notification.Name("EventUpdated"),
+                                    object: nil,
+                                    userInfo: [
+                                        "eventId": event.id,
+                                        "imageName": imageName,
+                                        "forceRefresh": true,
+                                        "event": updatedEvent
+                                    ]
+                                )
+                                
+                                // 发送图片缓存刷新通知
+                                NotificationCenter.default.post(
+                                    name: Notification.Name("RefreshImageCache"),
+                                    object: nil,
+                                    userInfo: [
+                                        "eventId": event.id,
+                                        "imageName": imageName,
+                                        "event": updatedEvent
+                                    ]
+                                )
+                                
+                                // 强制刷新图片缓存
+                                eventStore.imageCache.clearCache()
+                            }
                             
                             presentationMode.wrappedValue.dismiss()
                         }
@@ -1286,7 +1333,7 @@ struct ChildEventFormView: View {
 // 子事件详情视图
 struct ChildEventDetailView: View {
     let event: Event
-    @State private var currentEvent: Event
+    @ObservedObject var eventStore: EventStore
     @State private var selectedFrameStyle: FrameStyle = .template
     @State private var showingPhotosPicker = false
     @State private var showingFramePicker = false
@@ -1296,13 +1343,18 @@ struct ChildEventDetailView: View {
     @State private var selectedImageName: String? = nil
     @State private var showingPreview = false
     @State private var activeSheet: ActiveSheet? = nil
-    let eventStore: EventStore
     @Environment(\.presentationMode) var presentationMode
+    @State private var eventId: UUID
     
     // 添加照片刷新相关状态变量
     @State private var displayImage: UIImage? = nil
     @State private var isImageLoading = false
     @State private var needsImageRefresh = true
+    
+    // 始终从eventStore获取最新的事件数据
+    var currentEvent: Event {
+        eventStore.getEvent(by: eventId) ?? event
+    }
     
     enum ActiveSheet: Identifiable {
         case photosPicker
@@ -1323,9 +1375,7 @@ struct ChildEventDetailView: View {
     init(event: Event, eventStore: EventStore) {
         self.event = event
         self.eventStore = eventStore
-        
-        // 初始化currentEvent
-        _currentEvent = State(initialValue: event)
+        self._eventId = State(initialValue: event.id)
         
         // 根据event中保存的frameStyleName设置初始框样式
         if let frameStyleName = event.frameStyleName, let style = FrameStyle(rawValue: frameStyleName) {
@@ -1417,9 +1467,6 @@ struct ChildEventDetailView: View {
                         updatedEvent.imageName = imageName
                         eventStore.updateEvent(updatedEvent)
                         
-                        // 更新当前视图使用的事件数据
-                        self.currentEvent = updatedEvent
-                        
                         // 发送通知，让所有使用此事件的视图都能刷新
                         NotificationCenter.default.post(
                             name: Notification.Name("EventUpdated"),
@@ -1432,10 +1479,7 @@ struct ChildEventDetailView: View {
             case .framePicker:
                 FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: currentEvent, eventStore: eventStore)
                     .onDisappear {
-                        // 刷新当前事件，以防在帧选择器中已经更新了事件
-                        if let updatedEvent = eventStore.getEvent(by: currentEvent.id) {
-                            self.currentEvent = updatedEvent
-                        }
+                        // 不再需要刷新currentEvent，因为它现在是计算属性
                         activeSheet = nil
                     }
             case .editSheet:
@@ -1454,10 +1498,7 @@ struct ChildEventDetailView: View {
                     .onDisappear {
                         // 清除预览状态
                         showingPreview = false
-                        // 刷新当前事件，以防在预览视图中已经更新了事件
-                        if let updatedEvent = eventStore.getEvent(by: currentEvent.id) {
-                            self.currentEvent = updatedEvent
-                        }
+                        // 不再需要刷新currentEvent，因为它现在是计算属性
                         activeSheet = nil
                     }
                 } else {
@@ -1529,12 +1570,10 @@ struct ChildEventDetailView: View {
                 // 检查通知中的事件ID是否与当前事件ID匹配
                 if let notificationEventId = notification.userInfo?["eventId"] as? UUID,
                    notificationEventId == event.id {
-                    // 刷新当前事件数据
-                    if let updatedEvent = eventStore.getEvent(by: event.id) {
-                        self.currentEvent = updatedEvent
-                        self.needsImageRefresh = true
-                        self.loadAndProcessImage()
-                    }
+                    // 不需要手动更新currentEvent，因为它是计算属性
+                    // 只需要刷新显示
+                    self.needsImageRefresh = true
+                    self.loadAndProcessImage()
                 }
             }
         }
@@ -1659,25 +1698,45 @@ struct ChildEventDetailView: View {
     
     // 加载和处理图片的方法
     private func loadAndProcessImage() {
-        guard let imageName = currentEvent.imageName, !imageName.isEmpty else { return }
+        // 每次都从eventStore获取最新数据
+        let event = currentEvent
+        guard let imageName = event.imageName, !imageName.isEmpty else { return }
         
+        print("开始加载图片: \(imageName)，事件ID: \(event.id)")
         isImageLoading = true
         
+        // 先检查缓存
+        if let cachedImage = eventStore.imageCache.getImage(for: imageName, with: event) {
+            print("从缓存加载图片: \(imageName)")
+            DispatchQueue.main.async {
+                self.displayImage = cachedImage
+                self.isImageLoading = false
+                self.needsImageRefresh = false
+            }
+            return
+        }
+        
         // 使用后台线程加载图片
-        DispatchQueue.global().async {
+        DispatchQueue.global(qos: .userInitiated).async {
             // 从文档目录加载图片
             if let image = self.loadImageFromDocumentDirectory(named: imageName) {
+                print("从文档目录加载图片: \(imageName)")
+                
+                // 获取最新的事件数据进行处理
+                let currentEvent = self.currentEvent
+                
                 // 检查是否应用相框样式
                 var finalImage: UIImage? = nil
                 
-                if let frameStyleName = self.currentEvent.frameStyleName,
+                if let frameStyleName = currentEvent.frameStyleName,
                    let frameStyle = FrameStyle(rawValue: frameStyleName),
                    frameStyle.usesMaskOrFrame {
+                    print("应用相框样式: \(frameStyleName)")
                     finalImage = TemplateImageGenerator.shared.generateTemplateImage(
                         originalImage: image,
                         frameStyle: frameStyle, 
-                        scale: self.currentEvent.imageScale,
-                        offset: CGSize(width: self.currentEvent.imageOffsetX, height: self.currentEvent.imageOffsetY)
+                        scale: currentEvent.imageScale,
+                        offset: CGSize(width: currentEvent.imageOffsetX, height: currentEvent.imageOffsetY)
                     )
                 } else {
                     // 使用原始图片
@@ -1686,7 +1745,14 @@ struct ChildEventDetailView: View {
                 
                 // 切换回主线程更新UI
                 DispatchQueue.main.async {
-                    self.displayImage = finalImage
+                    if let finalImage = finalImage {
+                        // 缓存处理后的图片
+                        if let imageName = self.currentEvent.imageName {
+                            self.eventStore.imageCache.setImage(finalImage, for: imageName, with: self.currentEvent)
+                        }
+                        self.displayImage = finalImage
+                        print("成功加载并显示图片: \(imageName)")
+                    }
                     self.isImageLoading = false
                     self.needsImageRefresh = false
                 }
@@ -1694,6 +1760,7 @@ struct ChildEventDetailView: View {
                 // 处理加载失败的情况
                 DispatchQueue.main.async {
                     self.isImageLoading = false
+                    print("加载图片失败: \(imageName)")
                 }
             }
         }
@@ -1720,37 +1787,37 @@ struct ChildEventDetailView: View {
 // 子事件卡片组件
 struct ChildEventCard: View {
     let event: Event
+    @ObservedObject var eventStore: EventStore
+    @State private var displayImage: UIImage?
+    @State private var isLoading = false
     
     var body: some View {
         VStack(alignment: .leading) {
             // 图片部分
             ZStack {
-                if let imageName = event.imageName, !imageName.isEmpty,
-                   let image = loadImageFromDocumentDirectory(named: imageName) {
-                    
-                    // 如果有相框样式
-                    if let frameStyleName = event.frameStyleName,
-                       let frameStyle = FrameStyle(rawValue: frameStyleName),
-                       frameStyle.usesMaskOrFrame,
-                       let processedImage = TemplateImageGenerator.shared.generateTemplateImage(
-                           originalImage: image,
-                           frameStyle: frameStyle,
-                           scale: event.imageScale,
-                           offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
-                       ) {
-                        Image(uiImage: processedImage)
+                if let imageName = event.imageName, !imageName.isEmpty {
+                    if let image = displayImage {
+                        // 显示已处理的图片
+                        Image(uiImage: image)
                             .resizable()
                             .scaledToFit()
                             .frame(width: 120, height: 120)
-                    } else {
-                        // 使用普通样式
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .scaleEffect(event.imageScale)
-                            .offset(CGSize(width: event.imageOffsetX, height: event.imageOffsetY))
+                    } else if isLoading {
+                        // 加载中
+                        ProgressView()
                             .frame(width: 120, height: 120)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    } else {
+                        // 默认占位符并触发加载
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(event.type.color.opacity(0.1))
+                            .frame(width: 120, height: 120)
+                        
+                        Image(systemName: "photo")
+                            .font(.system(size: 40))
+                            .foregroundColor(event.type.color)
+                            .onAppear {
+                                loadImage(named: imageName)
+                            }
                     }
                 } else {
                     // 显示默认图标背景
@@ -1786,6 +1853,56 @@ struct ChildEventCard: View {
         .background(Color(UIColor.systemBackground))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+    }
+    
+    // 加载图片
+    private func loadImage(named imageName: String) {
+        isLoading = true
+        
+        // 先检查缓存
+        if let cachedImage = eventStore.imageCache.getImage(for: imageName, with: event) {
+            self.displayImage = cachedImage
+            self.isLoading = false
+            return
+        }
+        
+        // 从文档目录加载图片
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let image = self.loadImageFromDocumentDirectory(named: imageName) {
+                var processedImage: UIImage?
+                
+                // 处理图片
+                if let frameStyleName = event.frameStyleName,
+                   let frameStyle = FrameStyle(rawValue: frameStyleName),
+                   frameStyle.usesMaskOrFrame {
+                    // 使用模板生成器处理图片
+                    processedImage = TemplateImageGenerator.shared.generateTemplateImage(
+                        originalImage: image,
+                        frameStyle: frameStyle,
+                        scale: event.imageScale,
+                        offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
+                    )
+                } else {
+                    // 简单处理
+                    processedImage = image
+                }
+                
+                // 缓存处理后的图片
+                if let processedImage = processedImage {
+                    eventStore.imageCache.setImage(processedImage, for: imageName, with: event)
+                    
+                    // 在主线程更新UI
+                    DispatchQueue.main.async {
+                        self.displayImage = processedImage
+                        self.isLoading = false
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                }
+            }
+        }
     }
     
     // 从文档目录加载图片
