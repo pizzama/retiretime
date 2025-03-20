@@ -403,6 +403,12 @@ class EventStore: ObservableObject {
         return ["全部"] + uniqueCategories
     }
     
+    // 获取所有分类（不包含"全部"选项）
+    func getAllCategories() -> [String] {
+        let allCategories = events.map { $0.category }
+        return Array(Set(allCategories)).sorted()
+    }
+    
     // 根据分类筛选事件 (带缓存)
     func filteredEvents(by category: String) -> [Event] {
         // 检查缓存

@@ -341,10 +341,17 @@ struct EventDetailView: View {
                         activeSheet = nil
                     }
             case .editSheet:
-                ChildEventEditView(eventStore: eventStore, childEvent: currentEvent)
-                    .onDisappear {
-                        activeSheet = nil
-                    }
+                if currentEvent.isChildEvent {
+                    ChildEventEditView(eventStore: eventStore, childEvent: currentEvent)
+                        .onDisappear {
+                            activeSheet = nil
+                        }
+                } else {
+                    EventEditView(eventStore: eventStore, event: currentEvent)
+                        .onDisappear {
+                            activeSheet = nil
+                        }
+                }
             case .childEventForm:
                 ChildEventFormView(parentEvent: currentEvent, eventStore: eventStore)
                     .onDisappear {
@@ -1513,10 +1520,17 @@ struct ChildEventDetailView: View {
                         activeSheet = nil
                     }
             case .editSheet:
-                ChildEventEditView(eventStore: eventStore, childEvent: currentEvent)
-                    .onDisappear {
-                        activeSheet = nil
-                    }
+                if currentEvent.isChildEvent {
+                    ChildEventEditView(eventStore: eventStore, childEvent: currentEvent)
+                        .onDisappear {
+                            activeSheet = nil
+                        }
+                } else {
+                    EventEditView(eventStore: eventStore, event: currentEvent)
+                        .onDisappear {
+                            activeSheet = nil
+                        }
+                }
             case .preview:
                 if let image = selectedImage {
                     PhotoPreviewView(
@@ -2084,6 +2098,177 @@ struct ChildEventEditView: View {
                 }
             }
             .navigationTitle("编辑子事件")
+            .navigationBarItems(trailing: Button("取消") {
+                presentationMode.wrappedValue.dismiss()
+            })
+        }
+    }
+}
+
+// 添加主事件编辑视图
+// 主事件编辑视图
+struct EventEditView: View {
+    @Environment(\.presentationMode) var presentationMode
+    @State private var name: String
+    @State private var date: Date
+    @State private var notes: String
+    @State private var category: String
+    @State private var showingCategoryInput = false
+    @State private var newCategory = ""
+    @State private var reminderEnabled: Bool
+    @State private var reminderDate: Date
+    @State private var selectedType: EventType
+    @State private var birthDate: Date?
+    @State private var selectedGender: Gender?
+    
+    let eventStore: EventStore
+    let event: Event
+    
+    // 添加计算属性来获取所有分类
+    private var categories: [String] {
+        var result = eventStore.getAllCategories().sorted()
+        // 确保"未分类"和"新建分类"存在
+        if !result.contains("未分类") {
+            result.append("未分类")
+        }
+        if !result.contains("新建分类") {
+            result.append("新建分类")
+        }
+        return result
+    }
+    
+    init(eventStore: EventStore, event: Event) {
+        self.eventStore = eventStore
+        self.event = event
+        
+        // 初始化状态变量
+        _name = State(initialValue: event.name)
+        _date = State(initialValue: event.date)
+        _notes = State(initialValue: event.notes)
+        _category = State(initialValue: event.category)
+        _reminderEnabled = State(initialValue: event.reminderEnabled)
+        _reminderDate = State(initialValue: event.reminderDate ?? Date())
+        _selectedType = State(initialValue: event.type)
+        _birthDate = State(initialValue: event.birthDate)
+        _selectedGender = State(initialValue: event.gender)
+    }
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("基本信息")) {
+                    TextField("名称", text: $name)
+                    
+                    Picker("事件类型", selection: $selectedType) {
+                        ForEach(EventType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+                    
+                    DatePicker("日期", selection: $date, displayedComponents: [.date])
+                    
+                    if showingCategoryInput {
+                        HStack {
+                            TextField("输入新分类名称", text: $newCategory)
+                            
+                            Button(action: {
+                                if !newCategory.isEmpty {
+                                    category = newCategory
+                                    showingCategoryInput = false
+                                    newCategory = ""
+                                }
+                            }) {
+                                Text("确定")
+                            }
+                            
+                            Button(action: {
+                                showingCategoryInput = false
+                                newCategory = ""
+                            }) {
+                                Text("取消")
+                            }
+                        }
+                    } else {
+                        Picker("分类", selection: $category) {
+                            ForEach(categories, id: \.self) { category in
+                                Text(category).tag(category)
+                            }
+                        }
+                        .onChange(of: category) { newValue in
+                            if newValue == "新建分类" {
+                                category = "未分类" // 重置为默认值
+                                showingCategoryInput = true
+                            }
+                        }
+                    }
+                    
+                    VStack(alignment: .leading) {
+                        Text("备注")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        
+                        TextEditor(text: $notes)
+                            .frame(minHeight: 100)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 5)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            )
+                    }
+                }
+                
+                if selectedType == .retirement {
+                    Section(header: Text("退休信息")) {
+                        DatePicker("出生日期", selection: Binding(
+                            get: { birthDate ?? Date() },
+                            set: { birthDate = $0 }
+                        ), displayedComponents: [.date])
+                        
+                        Picker("性别", selection: Binding(
+                            get: { selectedGender ?? .male },
+                            set: { selectedGender = $0 }
+                        )) {
+                            ForEach(Gender.allCases) { gender in
+                                Text(gender.rawValue).tag(gender)
+                            }
+                        }
+                    }
+                }
+                
+                Section(header: Text("提醒")) {
+                    Toggle("启用提醒", isOn: $reminderEnabled)
+                    
+                    if reminderEnabled {
+                        DatePicker("提醒时间", selection: $reminderDate, displayedComponents: [.date, .hourAndMinute])
+                    }
+                }
+                
+                Section {
+                    Button("保存修改") {
+                        if !name.isEmpty {
+                            // 更新事件
+                            var updatedEvent = event
+                            updatedEvent.name = name
+                            updatedEvent.date = date
+                            updatedEvent.notes = notes
+                            updatedEvent.category = category
+                            updatedEvent.type = selectedType
+                            updatedEvent.reminderEnabled = reminderEnabled
+                            updatedEvent.reminderDate = reminderEnabled ? reminderDate : nil
+                            
+                            if selectedType == .retirement {
+                                updatedEvent.birthDate = birthDate
+                                updatedEvent.gender = selectedGender
+                            }
+                            
+                            eventStore.updateEvent(updatedEvent)
+                            presentationMode.wrappedValue.dismiss()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .disabled(name.isEmpty)
+                }
+            }
+            .navigationTitle("编辑事件")
             .navigationBarItems(trailing: Button("取消") {
                 presentationMode.wrappedValue.dismiss()
             })
