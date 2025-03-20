@@ -63,11 +63,23 @@ struct EventListView: View {
                     print("收到缓存清除通知，刷新事件列表")
                     self.refreshEvents()
                 }
+                
+                // 添加图片缓存刷新通知观察者
+                NotificationCenter.default.addObserver(
+                    forName: Notification.Name("RefreshImageCache"),
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    // 刷新事件列表
+                    print("收到图片缓存刷新通知，刷新事件列表")
+                    self.refreshEvents()
+                }
             }
             .onDisappear {
                 // 移除通知观察者
                 NotificationCenter.default.removeObserver(self, name: Notification.Name("EventUpdated"), object: nil)
                 NotificationCenter.default.removeObserver(self, name: Notification.Name("ClearEventCache"), object: nil)
+                NotificationCenter.default.removeObserver(self, name: Notification.Name("RefreshImageCache"), object: nil)
             }
         }
     }
@@ -76,6 +88,9 @@ struct EventListView: View {
     private func refreshEvents() {
         // 强制刷新UI
         eventStore.objectWillChange.send()
+        
+        // 强制清除图片缓存
+        eventStore.imageCache.clearCache()
     }
     
     // 当前事件头部视图
@@ -96,6 +111,8 @@ struct EventListView: View {
                                     // 使用LazyImage组件
                                     LazyImage(event: currentEvent, eventStore: eventStore)
                                         .frame(width: 80, height: 80)
+                                        // 添加id标识符，确保在imageName或frameStyleName更改时重新创建视图
+                                        .id("\(currentEvent.id)-\(imageName)-\(currentEvent.frameStyleName ?? "none")-\(currentEvent.imageScale)-\(currentEvent.imageOffsetX)-\(currentEvent.imageOffsetY)")
                                 } else {
                                     // 显示默认图标背景
                                     RoundedRectangle(cornerRadius: 8)
@@ -242,6 +259,8 @@ struct EventListView: View {
                     // 使用LazyImage组件延迟加载图片
                     LazyImage(event: event, eventStore: eventStore)
                         .frame(width: 100, height: 100)
+                        // 添加id标识符，确保在imageName或frameStyleName更改时重新创建视图
+                        .id("\(event.id)-\(imageName)-\(event.frameStyleName ?? "none")-\(event.imageScale)-\(event.imageOffsetX)-\(event.imageOffsetY)")
                 } else {
                     // 显示默认图标背景
                     ZStack {
@@ -288,6 +307,12 @@ struct EventListView: View {
         
         @State private var image: UIImage?
         @State private var isLoading = false
+        @State private var loadedImageID = "" // 存储已加载图片的ID，用于判断是否需要重新加载
+        
+        // 创建当前图片的唯一ID
+        private var currentImageID: String {
+            "\(event.id)-\(event.imageName ?? "")-\(event.frameStyleName ?? "")-\(event.imageScale)-\(event.imageOffsetX)-\(event.imageOffsetY)"
+        }
         
         var body: some View {
             GeometryReader { geometry in
@@ -318,11 +343,23 @@ struct EventListView: View {
                         }
                     }
                 }
+                .onChange(of: currentImageID) { _ in
+                    // 当图片标识符变化时，重新加载图片
+                    if loadedImageID != currentImageID {
+                        image = nil
+                        loadImage()
+                    }
+                }
             }
         }
         
         private func loadImage() {
             guard let imageName = event.imageName, !isLoading else { return }
+            
+            // 如果已经加载过相同的图片，则不重复加载
+            if loadedImageID == currentImageID {
+                return
+            }
             
             isLoading = true
             
@@ -330,6 +367,7 @@ struct EventListView: View {
             if let cachedImage = eventStore.imageCache.getImage(for: imageName, with: event) {
                 self.image = cachedImage
                 self.isLoading = false
+                self.loadedImageID = currentImageID
                 return
             }
             
@@ -362,11 +400,14 @@ struct EventListView: View {
                         DispatchQueue.main.async {
                             self.image = processedImage
                             self.isLoading = false
+                            self.loadedImageID = currentImageID
+                            print("LazyImage: 加载完成 - \(imageName)")
                         }
                     }
                 } else {
                     DispatchQueue.main.async {
                         self.isLoading = false
+                        print("LazyImage: 加载失败 - \(imageName)")
                     }
                 }
             }

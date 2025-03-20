@@ -1031,6 +1031,8 @@ struct PhotoPreviewView: View {
                                     ]
                                 )
                                 
+                                print("发送事件更新和图片缓存刷新通知")
+                                
                                 // 强制刷新图片缓存
                                 eventStore.imageCache.clearCache()
                             }
