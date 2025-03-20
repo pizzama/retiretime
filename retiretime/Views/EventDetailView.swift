@@ -131,7 +131,6 @@ struct EventDetailView: View {
     @State private var showingChildEventForm = false
     @State private var selectedImage: UIImage? = nil
     @State private var selectedImageName: String? = nil
-    @State private var childEvents: [Event] = []
     @State private var showingPreview = false
     @State private var activeSheet: ActiveSheet? = nil
     @State private var eventId: UUID
@@ -144,6 +143,11 @@ struct EventDetailView: View {
     // 始终从eventStore获取最新的事件数据
     var currentEvent: Event {
         eventStore.getEvent(by: eventId) ?? event
+    }
+    
+    // 添加子事件的计算属性，实时从eventStore获取
+    var childEvents: [Event] {
+        eventStore.childEvents(for: currentEvent)
     }
     
     enum ActiveSheet: Identifiable {
@@ -175,9 +179,6 @@ struct EventDetailView: View {
         } else {
             _selectedFrameStyle = State(initialValue: .template)
         }
-        
-        // 获取子事件
-        _childEvents = State(initialValue: eventStore.childEvents(for: event))
     }
     
     var body: some View {
@@ -287,6 +288,8 @@ struct EventDetailView: View {
                                 NavigationLink(destination: ChildEventDetailView(event: childEvent, eventStore: eventStore)) {
                                     ChildEventCard(event: childEvent, eventStore: eventStore)
                                 }
+                                // 为每个导航链接添加ID，确保在事件数据更新时视图能正确刷新
+                                .id(generateChildEventId(for: childEvent))
                             }
                         }
                     }
@@ -346,7 +349,6 @@ struct EventDetailView: View {
                 ChildEventFormView(parentEvent: currentEvent, eventStore: eventStore)
                     .onDisappear {
                         // 表单关闭时刷新子事件列表
-                        childEvents = eventStore.childEvents(for: currentEvent)
                         activeSheet = nil
                     }
             case .preview:
@@ -391,9 +393,6 @@ struct EventDetailView: View {
                 loadAndProcessImage()
             }
             
-            // 刷新子事件列表
-            childEvents = eventStore.childEvents(for: currentEvent)
-            
             // 添加通知观察者，用于刷新图片缓存
             NotificationCenter.default.addObserver(forName: Notification.Name("RefreshImageCache"), object: nil, queue: .main) { notification in
                 // 检查通知中的事件ID是否与当前事件ID匹配
@@ -418,8 +417,8 @@ struct EventDetailView: View {
                     self.needsImageRefresh = true
                     self.displayImage = nil
                     
-                    // 刷新子事件列表
-                    self.childEvents = self.eventStore.childEvents(for: self.currentEvent)
+                    // 不需要手动刷新子事件列表，因为childEvents现在是计算属性
+                    //self.childEvents = self.eventStore.childEvents(for: self.currentEvent)
                     
                     // 立即重新加载图片
                     DispatchQueue.main.async {
@@ -434,10 +433,12 @@ struct EventDetailView: View {
             NotificationCenter.default.removeObserver(self, name: Notification.Name("EventUpdated"), object: nil)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-            // 当应用从后台回到前台时刷新子事件列表和当前事件数据
-            // 不需要更新currentEvent，因为它是计算属性
-            // 刷新子事件列表
-            childEvents = eventStore.childEvents(for: currentEvent)
+            // 当应用从后台回到前台时刷新事件数据
+            // 不需要更新currentEvent和childEvents，因为它们是计算属性
+            // 只需要刷新图片
+            if currentEvent.imageName != nil {
+                loadAndProcessImage()
+            }
         }
     }
     
@@ -637,6 +638,8 @@ struct EventDetailView: View {
                     .foregroundColor(currentEvent.type.color)
             }
         }
+        // 添加id标识符，确保在事件属性更改时重新创建视图
+        .id(generatePhotoViewId(for: currentEvent))
     }
     
     // 加载和处理图片的方法
@@ -724,6 +727,31 @@ struct EventDetailView: View {
             print("加载图片失败: \(error)")
             return nil
         }
+    }
+    
+    // 子事件列表中使用的ID生成辅助方法
+    private func generateChildEventId(for event: Event) -> String {
+        let baseId = event.id.uuidString
+        let nameId = event.name
+        let imageId = event.imageName ?? "none"
+        let frameId = event.frameStyleName ?? "none"
+        let scaleId = String(format: "%.2f", event.imageScale)
+        let offsetXId = String(format: "%.0f", event.imageOffsetX)
+        let offsetYId = String(format: "%.0f", event.imageOffsetY)
+        
+        return "\(baseId)-\(nameId)-\(imageId)-\(frameId)-\(scaleId)-\(offsetXId)-\(offsetYId)"
+    }
+    
+    // 照片视图使用的ID生成辅助方法
+    private func generatePhotoViewId(for event: Event) -> String {
+        let baseId = event.id.uuidString
+        let imageId = event.imageName ?? "none"
+        let frameId = event.frameStyleName ?? "none"
+        let scaleId = String(format: "%.2f", event.imageScale)
+        let offsetXId = String(format: "%.0f", event.imageOffsetX)
+        let offsetYId = String(format: "%.0f", event.imageOffsetY)
+        
+        return "\(baseId)-\(imageId)-\(frameId)-\(scaleId)-\(offsetXId)-\(offsetYId)"
     }
 }
 
@@ -1696,6 +1724,8 @@ struct ChildEventDetailView: View {
                     .foregroundColor(currentEvent.type.color)
             }
         }
+        // 添加id标识符，确保在事件属性更改时重新创建视图
+        .id(generatePhotoViewId(for: currentEvent))
     }
     
     // 加载和处理图片的方法
@@ -1784,6 +1814,18 @@ struct ChildEventDetailView: View {
             return nil
         }
     }
+    
+    // 照片视图使用的ID生成辅助方法
+    private func generatePhotoViewId(for event: Event) -> String {
+        let baseId = event.id.uuidString
+        let imageId = event.imageName ?? "none"
+        let frameId = event.frameStyleName ?? "none"
+        let scaleId = String(format: "%.2f", event.imageScale)
+        let offsetXId = String(format: "%.0f", event.imageOffsetX)
+        let offsetYId = String(format: "%.0f", event.imageOffsetY)
+        
+        return "\(baseId)-\(imageId)-\(frameId)-\(scaleId)-\(offsetXId)-\(offsetYId)"
+    }
 }
 
 // 子事件卡片组件
@@ -1834,6 +1876,8 @@ struct ChildEventCard: View {
             }
             .frame(width: 120, height: 120)
             .padding(.bottom, 8)
+            // 添加id标识符，确保在imageName或frameStyleName更改时重新创建视图
+            .id(generateChildEventId(for: event))
             
             // 事件信息
             Text(event.name)
@@ -1855,6 +1899,49 @@ struct ChildEventCard: View {
         .background(Color(UIColor.systemBackground))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .onAppear {
+            // 当子事件卡片出现时，加载图片
+            if let imageName = event.imageName {
+                loadImage(named: imageName)
+            }
+        }
+        // 监听缓存刷新通知
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("RefreshImageCache"))) { notification in
+            // 处理直接针对此事件的通知
+            if let eventId = notification.userInfo?["eventId"] as? UUID, eventId == event.id {
+                print("子事件卡片：收到刷新图片缓存通知，事件ID: \(event.id)")
+                refreshCardImage()
+            }
+            // 处理全局缓存刷新
+            else if notification.userInfo?["clearAllCache"] as? Bool == true {
+                print("子事件卡片：收到全局缓存刷新通知")
+                refreshCardImage()
+            }
+        }
+        // 监听事件更新通知
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("EventUpdated"))) { notification in
+            if let eventId = notification.userInfo?["eventId"] as? UUID, eventId == event.id {
+                print("子事件卡片：收到事件更新通知，事件ID: \(event.id)")
+                refreshCardImage()
+            }
+            // 如果是父事件更新，也需要刷新子事件卡片
+            else if let parentId = event.parentId, let updatedEventId = notification.userInfo?["eventId"] as? UUID, parentId == updatedEventId {
+                print("子事件卡片：父事件更新，刷新子事件，子事件ID: \(event.id)，父事件ID: \(parentId)")
+                refreshCardImage()
+            }
+        }
+        // 监听应用重新激活
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            refreshCardImage()
+        }
+    }
+    
+    // 刷新卡片图片的辅助方法
+    private func refreshCardImage() {
+        displayImage = nil
+        if let imageName = event.imageName {
+            loadImage(named: imageName)
+        }
     }
     
     // 加载图片
@@ -1922,6 +2009,19 @@ struct ChildEventCard: View {
             print("加载图片失败: \(error)")
             return nil
         }
+    }
+    
+    // 子事件列表中使用的ID生成辅助方法
+    private func generateChildEventId(for event: Event) -> String {
+        let baseId = event.id.uuidString
+        let nameId = event.name
+        let imageId = event.imageName ?? "none"
+        let frameId = event.frameStyleName ?? "none"
+        let scaleId = String(format: "%.2f", event.imageScale)
+        let offsetXId = String(format: "%.0f", event.imageOffsetX)
+        let offsetYId = String(format: "%.0f", event.imageOffsetY)
+        
+        return "\(baseId)-\(nameId)-\(imageId)-\(frameId)-\(scaleId)-\(offsetXId)-\(offsetYId)"
     }
 }
 

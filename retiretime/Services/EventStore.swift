@@ -204,8 +204,63 @@ class EventStore: ObservableObject {
             NotificationCenter.default.post(
                 name: Notification.Name("EventUpdated"),
                 object: nil,
-                userInfo: ["eventId": event.id]
+                userInfo: [
+                    "eventId": event.id,
+                    "imageName": event.imageName ?? "",
+                    "forceRefresh": true,
+                    "event": event
+                ]
             )
+            
+            // 如果是图片相关属性变更，发送刷新图片缓存通知
+            if oldEvent.imageName != event.imageName || 
+               oldEvent.frameStyleName != event.frameStyleName ||
+               oldEvent.imageScale != event.imageScale ||
+               oldEvent.imageOffsetX != event.imageOffsetX ||
+               oldEvent.imageOffsetY != event.imageOffsetY {
+                
+                // 发送刷新图片缓存通知
+                NotificationCenter.default.post(
+                    name: Notification.Name("RefreshImageCache"),
+                    object: nil,
+                    userInfo: [
+                        "eventId": event.id,
+                        "imageName": event.imageName ?? "",
+                        "event": event
+                    ]
+                )
+                
+                // 如果是子事件，也通知父事件
+                if let parentId = event.parentId {
+                    NotificationCenter.default.post(
+                        name: Notification.Name("EventUpdated"),
+                        object: nil,
+                        userInfo: [
+                            "eventId": parentId,
+                            "childUpdated": true,
+                            "childId": event.id
+                        ]
+                    )
+                }
+                
+                // 如果是父事件，通知所有子事件
+                let childEvents = self.childEvents(for: event)
+                if !childEvents.isEmpty {
+                    // 发送通知给所有子事件
+                    NotificationCenter.default.post(
+                        name: Notification.Name("RefreshImageCache"),
+                        object: nil,
+                        userInfo: [
+                            "parentUpdated": true,
+                            "parentId": event.id,
+                            "clearAllCache": true
+                        ]
+                    )
+                }
+                
+                // 清除图片缓存
+                imageCache.clearCache()
+            }
         }
     }
     
