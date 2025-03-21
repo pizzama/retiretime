@@ -2200,6 +2200,7 @@ struct EventEditView: View {
     @State private var reminderEnabled: Bool
     @State private var reminderDate: Date
     @State private var selectedType: EventType
+    @State private var selectedCalendarType: CalendarType
     @State private var birthDate: Date?
     @State private var selectedGender: Gender?
     
@@ -2231,6 +2232,7 @@ struct EventEditView: View {
         _reminderEnabled = State(initialValue: event.reminderEnabled)
         _reminderDate = State(initialValue: event.reminderDate ?? Date())
         _selectedType = State(initialValue: event.type)
+        _selectedCalendarType = State(initialValue: event.calendarType ?? .gregorian)
         _birthDate = State(initialValue: event.birthDate)
         _selectedGender = State(initialValue: event.gender)
     }
@@ -2248,6 +2250,15 @@ struct EventEditView: View {
                     }
                     
                     DatePicker("日期", selection: $date, displayedComponents: [.date])
+                    
+                    Picker("日历类型", selection: $selectedCalendarType) {
+                        ForEach(CalendarType.allCases) { calendarType in
+                            HStack {
+                                Image(systemName: calendarType.icon)
+                                Text(calendarType.rawValue)
+                            }.tag(calendarType)
+                        }
+                    }
                     
                     if showingCategoryInput {
                         HStack {
@@ -2334,6 +2345,7 @@ struct EventEditView: View {
                             updatedEvent.notes = notes
                             updatedEvent.category = category
                             updatedEvent.type = selectedType
+                            updatedEvent.calendarType = selectedCalendarType
                             updatedEvent.reminderEnabled = reminderEnabled
                             updatedEvent.reminderDate = reminderEnabled ? reminderDate : nil
                             
