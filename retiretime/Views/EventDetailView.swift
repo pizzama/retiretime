@@ -2199,8 +2199,12 @@ struct EventEditView: View {
     @State private var newCategory = ""
     @State private var reminderEnabled: Bool
     @State private var reminderDate: Date
+    @State private var reminderOffset: ReminderOffset
+    @State private var notificationSound: NotificationSound
+    @State private var vibrationEnabled: Bool
     @State private var selectedType: EventType
     @State private var selectedCalendarType: CalendarType
+    @State private var selectedRepeatType: RepeatType
     @State private var birthDate: Date?
     @State private var selectedGender: Gender?
     
@@ -2231,10 +2235,36 @@ struct EventEditView: View {
         _category = State(initialValue: event.category)
         _reminderEnabled = State(initialValue: event.reminderEnabled)
         _reminderDate = State(initialValue: event.reminderDate ?? Date())
+        _reminderOffset = State(initialValue: event.reminderOffset)
+        _notificationSound = State(initialValue: event.notificationSound ?? .default)
+        _vibrationEnabled = State(initialValue: event.vibrationEnabled)
         _selectedType = State(initialValue: event.type)
         _selectedCalendarType = State(initialValue: event.calendarType ?? .gregorian)
+        _selectedRepeatType = State(initialValue: event.repeatType)
         _birthDate = State(initialValue: event.birthDate)
         _selectedGender = State(initialValue: event.gender)
+    }
+    
+    // 添加辅助方法计算提醒日期
+    private func calculateReminderDate(for eventDate: Date, with offset: ReminderOffset, at specificTime: Date) -> Date? {
+        if offset == .atTime {
+            // 使用指定的时间
+            let calendar = Calendar.current
+            let hour = calendar.component(.hour, from: specificTime)
+            let minute = calendar.component(.minute, from: specificTime)
+            
+            if var reminderDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: eventDate) {
+                // 如果提醒日期已过，则设为第二天
+                if reminderDate < Date() {
+                    reminderDate = calendar.date(byAdding: .day, value: 1, to: reminderDate) ?? reminderDate
+                }
+                return reminderDate
+            }
+            return nil
+        } else {
+            // 使用偏移计算提醒时间
+            return NotificationManager.shared.calculateReminderDate(eventDate: eventDate, offset: offset)
+        }
     }
     
     var body: some View {
@@ -2309,6 +2339,15 @@ struct EventEditView: View {
                     }
                 }
                 
+                // 重复部分移到提醒上方
+                Section(header: Text("重复")) {
+                    Picker("重复类型", selection: $selectedRepeatType) {
+                        ForEach(RepeatType.allCases) { repeatType in
+                            Text(repeatType.rawValue).tag(repeatType)
+                        }
+                    }
+                }
+                
                 if selectedType == .retirement {
                     Section(header: Text("退休信息")) {
                         DatePicker("出生日期", selection: Binding(
@@ -2328,10 +2367,26 @@ struct EventEditView: View {
                 }
                 
                 Section(header: Text("提醒")) {
-                    Toggle("启用提醒", isOn: $reminderEnabled)
+                    Toggle("开启提醒", isOn: $reminderEnabled)
                     
                     if reminderEnabled {
-                        DatePicker("提醒时间", selection: $reminderDate, displayedComponents: [.date, .hourAndMinute])
+                        Picker("提醒时间", selection: $reminderOffset) {
+                            ForEach(ReminderOffset.allCases) { offset in
+                                Text(offset.rawValue).tag(offset)
+                            }
+                        }
+                        
+                        if reminderOffset == .atTime {
+                            DatePicker("具体时间", selection: $reminderDate, displayedComponents: [.hourAndMinute])
+                        }
+                        
+                        Picker("提醒声音", selection: $notificationSound) {
+                            ForEach(NotificationSound.allCases) { sound in
+                                Text(sound.rawValue).tag(sound)
+                            }
+                        }
+                        
+                        Toggle("震动提醒", isOn: $vibrationEnabled)
                     }
                 }
                 
@@ -2346,8 +2401,18 @@ struct EventEditView: View {
                             updatedEvent.category = category
                             updatedEvent.type = selectedType
                             updatedEvent.calendarType = selectedCalendarType
+                            updatedEvent.repeatType = selectedRepeatType
                             updatedEvent.reminderEnabled = reminderEnabled
-                            updatedEvent.reminderDate = reminderEnabled ? reminderDate : nil
+                            updatedEvent.reminderOffset = reminderOffset
+                            updatedEvent.notificationSound = notificationSound
+                            updatedEvent.vibrationEnabled = vibrationEnabled
+                            
+                            // 计算提醒日期
+                            if reminderEnabled {
+                                updatedEvent.reminderDate = calculateReminderDate(for: date, with: reminderOffset, at: reminderDate)
+                            } else {
+                                updatedEvent.reminderDate = nil
+                            }
                             
                             if selectedType == .retirement {
                                 updatedEvent.birthDate = birthDate
