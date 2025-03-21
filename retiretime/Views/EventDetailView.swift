@@ -2017,25 +2017,13 @@ struct ChildEventCard: View {
                                 // 使用相框遮罩
                                 Image(uiImage: image)
                                     .resizable()
-                                    .scaledToFill()
+                                    .aspectRatio(contentMode: .fit)
                                     .frame(width: 140, height: 80)
-                                    .overlay(
-                                        Group {
-                                            if let maskName = frameStyle.maskImageName {
-                                                Image(maskName)
-                                                    .resizable()
-                                                    .scaledToFit()
-                                                    .frame(width: 140, height: 80)
-                                                    .opacity(0.85)
-                                            }
-                                        }
-                                    )
-                                    .cornerRadius(8)
                             } else {
                                 // 普通显示
                                 Image(uiImage: image)
                                     .resizable()
-                                    .aspectRatio(contentMode: .fill)
+                                    .aspectRatio(contentMode: .fit)
                                     .frame(width: 140, height: 80)
                                     .cornerRadius(8)
                             }

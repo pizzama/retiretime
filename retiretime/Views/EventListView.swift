@@ -360,35 +360,13 @@ struct EventListView: View {
                 // 事件类型图标或自定义图片
                 if let imageName = event.imageName, !imageName.isEmpty {
                     if let image = eventStore.imageCache.getImage(for: imageName, with: event) {
-                        // 相框效果
-                        if let frameStyleName = event.frameStyleName, 
-                           let frameStyle = FrameStyle(rawValue: frameStyleName),
-                           frameStyle.usesMaskOrFrame {
-                            // 使用相框遮罩
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 85, height: 85)
-                                .overlay(
-                                    Group {
-                                        if let maskName = frameStyle.maskImageName {
-                                            Image(maskName)
-                                                .resizable()
-                                                .scaledToFit()
-                                                .frame(width: 85, height: 85)
-                                                .opacity(0.85)
-                                        }
-                                    }
-                                )
-                                .cornerRadius(8)
-                        } else {
-                            // 普通显示
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 85, height: 85)
-                                .cornerRadius(8)
-                        }
+                        // 相框效果已在TemplateImageGenerator中应用
+                        // 直接显示处理后的图片，不需要额外添加遮罩
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 85, height: 85)
+                            .cornerRadius(8)
                     } else {
                         // 没有找到缓存的图片，显示占位符并尝试加载
                         Image(systemName: "photo")
@@ -574,9 +552,8 @@ struct EventListView: View {
                     if let image = image {
                         Image(uiImage: image)
                             .resizable()
-                            .scaledToFill()
+                            .aspectRatio(contentMode: .fit)
                             .frame(width: geometry.size.width, height: geometry.size.height)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
                     } else {
                         // 加载中占位符
                         ZStack {
