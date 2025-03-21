@@ -406,7 +406,11 @@ struct EventDetailView: View {
                             userInfo: ["eventId": event.id]
                         )
                     }
-                    activeSheet = nil
+                    // 注意：这里不再直接设置activeSheet = nil
+                    // 而是先重置showingPreview，让onChange事件处理activeSheet
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        showingPreview = false
+                    }
                 }
             case .framePicker:
                 FramePickerView(event: currentEvent, selectedStyle: $selectedFrameStyle, eventStore: eventStore)
@@ -420,7 +424,11 @@ struct EventDetailView: View {
                     event: currentEvent,
                     image: selectedImage,
                     frameStyle: selectedFrameStyle,
-                    frameBackground: selectedFrameBackground
+                    frameBackground: selectedFrameBackground,
+                    onDismiss: {
+                        // 重置showingPreview状态
+                        showingPreview = false
+                    }
                 )
             case .childEventForm:
                 ChildEventFormView(parentEvent: currentEvent, eventStore: eventStore)
@@ -430,6 +438,12 @@ struct EventDetailView: View {
             if newValue {
                 print("showingPreview 变为 true，设置 activeSheet = .preview")
                 activeSheet = .preview
+            } else {
+                // 当showingPreview变为false时，确保状态一致性
+                print("showingPreview 变为 false，检查activeSheet状态")
+                if activeSheet == .preview {
+                    activeSheet = nil
+                }
             }
         }
         .onAppear {
@@ -866,6 +880,7 @@ struct PhotoPreviewView: View {
     let event: Event
     let eventStore: EventStore
     let frameStyle: FrameStyle
+    var onDismiss: (() -> Void)? = nil
     
     var body: some View {
         NavigationView {
@@ -1085,6 +1100,10 @@ struct PhotoPreviewView: View {
             .navigationTitle("调整照片")
             .navigationBarItems(trailing: Button("取消") {
                 presentationMode.wrappedValue.dismiss()
+                // 在取消按钮中调用onDismiss回调
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    onDismiss?()
+                }
             })
             .alert(isPresented: $showingSaveAlert) {
                 Alert(
@@ -1136,7 +1155,12 @@ struct PhotoPreviewView: View {
                                 eventStore.imageCache.clearCache()
                             }
                             
+                            // 关闭视图
                             presentationMode.wrappedValue.dismiss()
+                            // 调用onDismiss回调
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                onDismiss?()
+                            }
                         }
                     },
                     secondaryButton: .cancel(Text("取消"))
@@ -1224,21 +1248,31 @@ struct PhotoPicker: UIViewControllerRepresentable {
             result.itemProvider.loadObject(ofClass: UIImage.self) { (object, error) in
                 if let error = error {
                     print("加载图片错误: \(error.localizedDescription)")
+                    DispatchQueue.main.async {
+                        self.parent.onSelect(nil)
+                    }
+                    return
                 }
                 
                 if let image = object as? UIImage {
                     DispatchQueue.main.async {
                         print("成功加载图片，尺寸: \(image.size.width) x \(image.size.height)")
+                        // 先复位状态变量
+                        self.parent.showingPreview = false
+                        // 设置图片
                         self.parent.selectedImage = image
                         
                         // 确保图片已经设置后再显示预览
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            // 这会触发onChange事件，进而设置activeSheet
                             self.parent.showingPreview = true
                         }
                     }
                 } else {
                     print("无法加载图片对象")
-                    self.parent.onSelect(nil)
+                    DispatchQueue.main.async {
+                        self.parent.onSelect(nil)
+                    }
                 }
             }
         }
@@ -1597,7 +1631,11 @@ struct ChildEventDetailView: View {
                             userInfo: ["eventId": event.id]
                         )
                     }
-                    activeSheet = nil
+                    // 注意：这里不再直接设置activeSheet = nil
+                    // 而是先重置showingPreview，让onChange事件处理activeSheet
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        showingPreview = false
+                    }
                 }
             case .framePicker:
                 FramePickerView(event: currentEvent, selectedStyle: $selectedFrameStyle, eventStore: eventStore)
@@ -1611,7 +1649,11 @@ struct ChildEventDetailView: View {
                     event: currentEvent,
                     image: selectedImage,
                     frameStyle: selectedFrameStyle,
-                    frameBackground: selectedFrameBackground
+                    frameBackground: selectedFrameBackground,
+                    onDismiss: {
+                        // 重置showingPreview状态
+                        showingPreview = false
+                    }
                 )
             case .childEventForm:
                 ChildEventFormView(parentEvent: currentEvent, eventStore: eventStore)
@@ -1645,6 +1687,12 @@ struct ChildEventDetailView: View {
             if newValue {
                 print("showingPreview 变为 true，设置 activeSheet = .preview")
                 activeSheet = .preview
+            } else {
+                // 当showingPreview变为false时，确保状态一致性
+                print("showingPreview 变为 false，检查activeSheet状态")
+                if activeSheet == .preview {
+                    activeSheet = nil
+                }
             }
         }
         .onAppear {
@@ -2555,6 +2603,7 @@ struct PreviewView: View {
     let image: UIImage?
     let frameStyle: FrameStyle
     let frameBackground: FrameBackground
+    var onDismiss: (() -> Void)? = nil
     
     var body: some View {
         NavigationView {
@@ -2562,7 +2611,15 @@ struct PreviewView: View {
                 image: image ?? UIImage(),
                 event: event,
                 eventStore: eventStore,
-                frameStyle: frameStyle
+                frameStyle: frameStyle,
+                onDismiss: {
+                    // 先关闭当前视图
+                    presentationMode.wrappedValue.dismiss()
+                    // 然后调用外部传入的onDismiss回调
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        onDismiss?()
+                    }
+                }
             )
         }
     }
