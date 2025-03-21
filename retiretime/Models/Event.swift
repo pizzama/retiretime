@@ -199,6 +199,11 @@ public struct Event: Identifiable, Codable {
         return formatter.string(from: date)
     }
     
+    // 判断事件是否已经过去
+    public var isPassed: Bool {
+        return daysRemaining < 0
+    }
+    
     // 显示图标
     public var displayIcon: String {
         // 如果有自定义图标，则使用自定义图标

@@ -44,6 +44,9 @@ struct EventListView: View {
                 // 刷新事件列表
                 refreshEvents()
                 
+                // 强制清除图片缓存，确保显示最新的相框效果
+                eventStore.imageCache.clearCache()
+                
                 // 添加通知观察者
                 NotificationCenter.default.addObserver(
                     forName: Notification.Name("EventUpdated"),
@@ -107,18 +110,69 @@ struct EventListView: View {
                         HStack(spacing: 15) {
                             // 左侧照片
                             ZStack {
+                                // 背景色
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(currentEvent.type.color.opacity(0.1))
+                                
                                 if let imageName = currentEvent.imageName, !imageName.isEmpty {
-                                    // 使用LazyImage组件
-                                    LazyImage(event: currentEvent, eventStore: eventStore)
-                                        .frame(width: 80, height: 80)
-                                        // 添加id标识符，确保在imageName或frameStyleName更改时重新创建视图
-                                        .id("\(currentEvent.id)-\(imageName)-\(currentEvent.frameStyleName ?? "none")-\(currentEvent.imageScale)-\(currentEvent.imageOffsetX)-\(currentEvent.imageOffsetY)")
-                                } else {
-                                    // 显示默认图标背景
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.clear)
-                                        .frame(width: 80, height: 80)
+                                    if let image = eventStore.imageCache.getImage(for: imageName, with: currentEvent) {
+                                        // 相框效果
+                                        if let frameStyleName = currentEvent.frameStyleName, 
+                                           let frameStyle = FrameStyle(rawValue: frameStyleName),
+                                           frameStyle.usesMaskOrFrame {
+                                            // 使用相框遮罩
+                                            Image(uiImage: image)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 80, height: 80)
+                                                .overlay(
+                                                    Group {
+                                                        if let maskName = frameStyle.maskImageName {
+                                                            Image(maskName)
+                                                                .resizable()
+                                                                .aspectRatio(contentMode: .fit)
+                                                                .opacity(0.85)
+                                                        }
+                                                    }
+                                                )
+                                                .cornerRadius(8)
+                                        } else {
+                                            // 普通显示
+                                            Image(uiImage: image)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 80, height: 80)
+                                                .cornerRadius(8)
+                                        }
+                                    } else {
+                                        Image(systemName: "photo")
+                                            .font(.system(size: 30))
+                                            .foregroundColor(currentEvent.type.color)
+                                    }
                                     
+                                    // 添加相框装饰元素
+                                    if let frameStyleName = currentEvent.frameStyleName, 
+                                       let frameStyle = FrameStyle(rawValue: frameStyleName),
+                                       !frameStyle.usesMaskOrFrame && !frameStyle.decorationSymbols.isEmpty {
+                                        
+                                        // 左上角装饰
+                                        if frameStyle.decorationSymbols.count > 0 {
+                                            Image(systemName: frameStyle.decorationSymbols[0])
+                                                .font(.system(size: 12))
+                                                .foregroundColor(frameStyle.borderColor)
+                                                .position(x: 16, y: 16)
+                                        }
+                                        
+                                        // 右上角装饰
+                                        if frameStyle.decorationSymbols.count > 1 {
+                                            Image(systemName: frameStyle.decorationSymbols[1])
+                                                .font(.system(size: 12))
+                                                .foregroundColor(frameStyle.borderColor.opacity(0.7))
+                                                .position(x: 64, y: 16)
+                                        }
+                                    }
+                                } else {
+                                    // 显示默认图标
                                     Image(systemName: currentEvent.type.icon)
                                         .font(.system(size: 30))
                                         .foregroundColor(currentEvent.type.color)
@@ -128,10 +182,41 @@ struct EventListView: View {
                             
                             // 中间事件信息
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(currentEvent.name)
-                                    .font(.title3)
-                                    .fontWeight(.bold)
-                                    .lineLimit(1)
+                                // 事件名称带背景板
+                                ZStack(alignment: .center) {
+                                    // 背景板
+                                    if let backgroundName = currentEvent.frameBackgroundName, backgroundName != "无背景", 
+                                       let frameBackground = FrameBackground(rawValue: backgroundName) {
+                                        // 使用与详情页相同的背景图片
+                                        Image(frameBackground.backgroundImageName ?? "")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(height: 30)
+                                            .overlay(
+                                                // 装饰符号（如果有）
+                                                Image(systemName: frameBackground.decorationSymbol)
+                                                    .font(.system(size: 14))
+                                                    .foregroundColor(.white)
+                                                    .opacity(0.8)
+                                                    .padding(.leading, -60),
+                                                alignment: .center
+                                            )
+                                    } else {
+                                        // 如果没有设置背景或设为"无背景"，则使用事件类型颜色
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(currentEvent.type.color.opacity(0.15))
+                                            .frame(height: 30)
+                                    }
+                                    
+                                    // 事件名称
+                                    Text(currentEvent.name)
+                                        .font(.title3)
+                                        .fontWeight(.bold)
+                                        .lineLimit(1)
+                                        .foregroundColor(currentEvent.frameBackgroundName != nil && currentEvent.frameBackgroundName != "无背景" ? .white : currentEvent.type.color.opacity(0.8))
+                                        .shadow(color: currentEvent.frameBackgroundName != nil && currentEvent.frameBackgroundName != "无背景" ? .black.opacity(0.5) : .clear, radius: 1, x: 0, y: 1)
+                                        .padding(.horizontal, 8)
+                                }
                                 
                                 Text(currentEvent.daysRemaining == 0 ? "今天" : 
                                      (currentEvent.isCountdown ? "还有\(abs(currentEvent.daysRemaining))天" : "已过\(abs(currentEvent.daysRemaining))天"))
@@ -222,6 +307,8 @@ struct EventListView: View {
                         eventCard(for: event)
                     }
                     .buttonStyle(PlainButtonStyle())
+                    // 为每个导航链接添加ID，确保在事件更新时能正确刷新
+                    .id("\(event.id)-\(event.imageName ?? "")-\(event.frameStyleName ?? "")-\(event.frameBackgroundName ?? "")")
                 }
             }
         }
@@ -244,6 +331,8 @@ struct EventListView: View {
                         eventCard(for: event)
                     }
                     .buttonStyle(PlainButtonStyle())
+                    // 为每个导航链接添加ID，确保在事件更新时能正确刷新
+                    .id("\(event.id)-\(event.imageName ?? "")-\(event.frameStyleName ?? "")-\(event.frameBackgroundName ?? "")")
                 }
             }
         }
@@ -251,53 +340,192 @@ struct EventListView: View {
     }
     
     // 事件卡片视图
-    private func eventCard(for event: Event) -> some View {
-        VStack(alignment: .leading) {
-            // 图片部分
+    @ViewBuilder
+    func eventCard(for event: Event) -> some View {
+        VStack(alignment: .center, spacing: 4) {
+            // 显示图片部分
             ZStack {
+                // 背景色
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(event.type.color.opacity(0.1))
+                
+                // 事件类型图标或自定义图片
                 if let imageName = event.imageName, !imageName.isEmpty {
-                    // 使用LazyImage组件延迟加载图片
-                    LazyImage(event: event, eventStore: eventStore)
-                        .frame(width: 100, height: 100)
-                        // 添加id标识符，确保在imageName或frameStyleName更改时重新创建视图
-                        .id("\(event.id)-\(imageName)-\(event.frameStyleName ?? "none")-\(event.imageScale)-\(event.imageOffsetX)-\(event.imageOffsetY)")
-                } else {
-                    // 显示默认图标背景
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.clear)
-                            .frame(width: 100, height: 100)
-                        
-                        Image(systemName: event.type.icon)
-                            .font(.system(size: 40))
+                    if let image = eventStore.imageCache.getImage(for: imageName, with: event) {
+                        // 相框效果
+                        if let frameStyleName = event.frameStyleName, 
+                           let frameStyle = FrameStyle(rawValue: frameStyleName),
+                           frameStyle.usesMaskOrFrame {
+                            // 使用相框遮罩
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 80, height: 80)
+                                .overlay(
+                                    Group {
+                                        if let maskName = frameStyle.maskImageName {
+                                            Image(maskName)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fit)
+                                                .opacity(0.85)
+                                        }
+                                    }
+                                )
+                                .cornerRadius(8)
+                        } else {
+                            // 普通显示
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 80, height: 80)
+                                .cornerRadius(8)
+                        }
+                    } else {
+                        // 没有找到缓存的图片，显示占位符并尝试加载
+                        Image(systemName: "photo")
+                            .font(.system(size: 30))
                             .foregroundColor(event.type.color)
+                            .onAppear {
+                                loadImageForEvent(event)
+                            }
                     }
-                    .frame(width: 100, height: 100)
+                } else {
+                    Image(systemName: event.type.icon)
+                        .font(.system(size: 30))
+                        .foregroundColor(event.type.color)
+                }
+                
+                // 添加相框装饰元素
+                if let frameStyleName = event.frameStyleName, 
+                   let frameStyle = FrameStyle(rawValue: frameStyleName),
+                   !frameStyle.usesMaskOrFrame && !frameStyle.decorationSymbols.isEmpty {
+                    
+                    // 左上角装饰
+                    if frameStyle.decorationSymbols.count > 0 {
+                        Image(systemName: frameStyle.decorationSymbols[0])
+                            .font(.system(size: 12))
+                            .foregroundColor(frameStyle.borderColor)
+                            .position(x: 16, y: 16)
+                    }
+                    
+                    // 右上角装饰
+                    if frameStyle.decorationSymbols.count > 1 {
+                        Image(systemName: frameStyle.decorationSymbols[1])
+                            .font(.system(size: 12))
+                            .foregroundColor(frameStyle.borderColor.opacity(0.7))
+                            .position(x: 64, y: 16)
+                    }
                 }
             }
-            .frame(width: 100, height: 100)
-            .padding(.bottom, 8)
+            .frame(width: 80, height: 80)
+            .padding(.bottom, 4)
+            .id("image-\(event.id)-\(event.imageName ?? "")-\(event.frameStyleName ?? "")")
             
-            // 事件信息
-            Text(event.name)
-                .font(.system(size: 16, weight: .medium))
-                .lineLimit(1)
-                .padding(.horizontal, 4)
+            // 事件名称带背景板
+            ZStack(alignment: .center) {
+                // 背景板
+                if let backgroundName = event.frameBackgroundName, backgroundName != "无背景", 
+                   let frameBackground = FrameBackground(rawValue: backgroundName) {
+                    // 使用与详情页相同的背景图片
+                    Image(frameBackground.backgroundImageName ?? "")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 26)
+                        .overlay(
+                            // 装饰符号（如果有）
+                            Image(systemName: frameBackground.decorationSymbol)
+                                .font(.system(size: 12))
+                                .foregroundColor(.white)
+                                .opacity(0.8)
+                                .padding(.leading, -45),
+                            alignment: .center
+                        )
+                } else {
+                    // 如果没有设置背景或设为"无背景"，则使用事件类型颜色
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(event.type.color.opacity(0.15))
+                        .frame(height: 24)
+                }
+                
+                // 事件名称
+                Text(event.name)
+                    .font(.system(size: 14))
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .foregroundColor(event.frameBackgroundName != nil && event.frameBackgroundName != "无背景" ? .white : event.type.color.opacity(0.8))
+                    .shadow(color: event.frameBackgroundName != nil && event.frameBackgroundName != "无背景" ? .black.opacity(0.5) : .clear, radius: 1, x: 0, y: 1)
+                    .padding(.horizontal, 6)
+            }
+            .id("background-\(event.id)-\(event.frameBackgroundName ?? "")")
             
-            Text(event.daysRemaining == 0 ? "今天" : 
-                 (event.isCountdown ? "还有\(abs(event.daysRemaining))天" : "已过\(abs(event.daysRemaining))天"))
+            // 显示剩余天数
+            Text(event.formattedDays)
                 .font(.system(size: 13))
-                .foregroundColor(event.isCountdown ? .green : .orange)
-                .padding(.horizontal, 4)
+                .foregroundColor(event.isPassed ? .gray : (event.isCountdown ? .green : .orange))
             
+            // 显示日期
             Text(event.formattedDate)
                 .font(.system(size: 12))
                 .foregroundColor(.gray)
-                .padding(.horizontal, 4)
         }
-        .frame(width: 100, height: 200)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .frame(width: 95, height: 140)
+        .onAppear {
+            // 在卡片出现时确保加载图片
+            if let imageName = event.imageName, !imageName.isEmpty {
+                if eventStore.imageCache.getImage(for: imageName, with: event) == nil {
+                    loadImageForEvent(event)
+                }
+            }
+        }
+    }
+    
+    // 加载事件图片的辅助方法
+    private func loadImageForEvent(_ event: Event) {
+        guard let imageName = event.imageName, !imageName.isEmpty else { return }
+        
+        // 从文档目录加载图片
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                return
+            }
+            
+            let fileURL = documentsDirectory.appendingPathComponent(imageName)
+            
+            do {
+                let imageData = try Data(contentsOf: fileURL)
+                if let originalImage = UIImage(data: imageData) {
+                    var processedImage: UIImage?
+                    
+                    // 处理图片
+                    if let frameStyleName = event.frameStyleName,
+                       let frameStyle = FrameStyle(rawValue: frameStyleName),
+                       frameStyle.usesMaskOrFrame {
+                        // 使用模板生成器处理图片
+                        processedImage = TemplateImageGenerator.shared.generateTemplateImage(
+                            originalImage: originalImage,
+                            frameStyle: frameStyle,
+                            scale: event.imageScale,
+                            offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
+                        )
+                    } else {
+                        // 简单缩放和偏移处理
+                        processedImage = originalImage
+                    }
+                    
+                    // 缓存处理后的图片
+                    if let processedImage = processedImage {
+                        DispatchQueue.main.async {
+                            // 在主线程中更新缓存和UI
+                            self.eventStore.imageCache.setImage(processedImage, for: imageName, with: event)
+                            // 强制视图刷新
+                            self.eventStore.objectWillChange.send()
+                        }
+                    }
+                }
+            } catch {
+                print("加载图片失败: \(error)")
+            }
+        }
     }
     
     // 懒加载图片组件

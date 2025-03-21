@@ -47,7 +47,7 @@ class EventStore: ObservableObject {
         
         // 创建缓存键
         func createCacheKey(for imageName: String, with event: Event) -> NSString {
-            let key = "\(imageName)_\(event.frameStyleName ?? "")_\(event.imageScale)_\(event.imageOffsetX)_\(event.imageOffsetY)"
+            let key = "\(imageName)_\(event.frameStyleName ?? "")_\(event.frameBackgroundName ?? "")_\(event.imageScale)_\(event.imageOffsetX)_\(event.imageOffsetY)"
             return key as NSString
         }
         

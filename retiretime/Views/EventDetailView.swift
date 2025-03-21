@@ -358,9 +358,10 @@ struct EventDetailView: View {
                             .padding(.top, 16)
                         
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                            ForEach(childEvents) { childEvent in
+                            ForEach(childEvents.indices, id: \.self) { index in
+                                let childEvent = childEvents[index]
                                 NavigationLink(destination: ChildEventDetailView(eventStore: eventStore, event: childEvent)) {
-                                    ChildEventCard(event: childEvent, eventStore: eventStore)
+                                    ChildEventCard(childEvent: childEvent, isFirstChild: index == 0, eventStore: eventStore)
                                 }
                                 // 为每个导航链接添加ID，确保在事件数据更新时视图能正确刷新
                                 .id(generateChildEventId(for: childEvent))
@@ -1973,116 +1974,149 @@ struct ChildEventDetailView: View {
 
 // 子事件卡片组件
 struct ChildEventCard: View {
-    let event: Event
+    var childEvent: Event
+    var isFirstChild: Bool = false
     @ObservedObject var eventStore: EventStore
     @State private var displayImage: UIImage?
     @State private var isLoading = false
     
     var body: some View {
-        VStack(alignment: .leading) {
-            // 图片部分
-            ZStack {
-                if let imageName = event.imageName, !imageName.isEmpty {
-                    if let image = displayImage {
-                        // 显示已处理的图片
-                        Image(uiImage: image)
+        HStack(spacing: 12) {
+            // 左侧竖线
+            VStack {
+                if isFirstChild {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 2)
+                        .frame(height: 20)
+                }
+                Circle()
+                    .fill(childEvent.isPassed ? Color.gray : childEvent.type.color)
+                    .frame(width: 10, height: 10)
+                Rectangle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 2)
+            }
+            
+            // 右侧事件内容
+            VStack(alignment: .leading, spacing: 8) {
+                // 显示照片或默认图标
+                ZStack {
+                    // 背景色
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(childEvent.type.color.opacity(0.1))
+                        .frame(height: 70)
+                    
+                    // 显示照片或图标
+                    if let imageName = childEvent.imageName, !imageName.isEmpty {
+                        if let image = displayImage {
+                            // 显示已处理的图片
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: 70)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        } else if isLoading {
+                            // 加载中
+                            ProgressView()
+                                .frame(height: 70)
+                        } else {
+                            // 默认占位符
+                            Image(systemName: "photo")
+                                .font(.system(size: 24))
+                                .foregroundColor(childEvent.type.color)
+                                .onAppear {
+                                    loadImage(named: imageName)
+                                }
+                        }
+                    } else {
+                        // 显示默认图标
+                        Image(systemName: childEvent.type.icon)
+                            .font(.system(size: 24))
+                            .foregroundColor(childEvent.type.color)
+                    }
+                }
+                .frame(height: 70)
+                .padding(.bottom, 4)
+                
+                // 事件名称带背景板
+                ZStack(alignment: .center) {
+                    // 背景板
+                    if let backgroundName = childEvent.frameBackgroundName, backgroundName != "无背景", 
+                       let frameBackground = FrameBackground(rawValue: backgroundName) {
+                        // 使用与详情页相同的背景图片
+                        Image(frameBackground.backgroundImageName ?? "")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 120, height: 120)
-                    } else if isLoading {
-                        // 加载中
-                        ProgressView()
-                            .frame(width: 120, height: 120)
+                            .frame(height: 26)
+                            .overlay(
+                                // 装饰符号（如果有）
+                                Image(systemName: frameBackground.decorationSymbol)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white)
+                                    .opacity(0.8)
+                                    .padding(.leading, -50),
+                                alignment: .center
+                            )
                     } else {
-                        // 默认占位符并触发加载
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(event.type.color.opacity(0.1))
-                            .frame(width: 120, height: 120)
-                        
-                        Image(systemName: "photo")
-                            .font(.system(size: 40))
-                            .foregroundColor(event.type.color)
-                            .onAppear {
-                                loadImage(named: imageName)
-                            }
+                        // 如果没有设置背景或设为"无背景"，则使用事件类型颜色
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(childEvent.type.color.opacity(0.15))
+                            .frame(height: 26)
                     }
-                } else {
-                    // 显示默认图标背景
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(event.type.color.opacity(0.1))
-                        .frame(width: 120, height: 120)
                     
-                    Image(systemName: event.type.icon)
-                        .font(.system(size: 40))
-                        .foregroundColor(event.type.color)
+                    // 事件名称
+                    Text(childEvent.name)
+                        .font(.system(size: 14))
+                        .fontWeight(.medium)
+                        .foregroundColor(childEvent.frameBackgroundName != nil && childEvent.frameBackgroundName != "无背景" ? .white : childEvent.type.color.opacity(0.8))
+                        .shadow(color: childEvent.frameBackgroundName != nil && childEvent.frameBackgroundName != "无背景" ? .black.opacity(0.5) : .clear, radius: 1, x: 0, y: 1)
+                        .padding(.horizontal, 8)
                 }
+                
+                // 显示天数信息
+                Text(childEvent.formattedDays)
+                    .font(.system(size: 13))
+                    .foregroundColor(childEvent.isCountdown ? .green : .orange)
+                    .padding(.horizontal, 4)
+                
+                // 显示日期信息
+                Text(childEvent.formattedDate)
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+                    .padding(.horizontal, 4)
             }
-            .frame(width: 120, height: 120)
-            .padding(.bottom, 8)
-            // 添加id标识符，确保在imageName或frameStyleName更改时重新创建视图
-            .id(generateChildEventId(for: event))
-            
-            // 事件信息
-            Text(event.name)
-                .font(.system(size: 16, weight: .medium))
-                .lineLimit(1)
-                .padding(.horizontal, 4)
-            
-            Text(event.formattedDays)
-                .font(.system(size: 13))
-                .foregroundColor(event.isCountdown ? .green : .orange)
-                .padding(.horizontal, 4)
-            
-            Text(event.formattedDate)
-                .font(.system(size: 12))
-                .foregroundColor(.gray)
-                .padding(.horizontal, 4)
+            .frame(width: 140)
         }
-        .frame(width: 160, height: 200)
-        .background(Color(UIColor.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         .onAppear {
             // 当子事件卡片出现时，加载图片
-            if let imageName = event.imageName {
+            if let imageName = childEvent.imageName {
                 loadImage(named: imageName)
             }
         }
         // 监听缓存刷新通知
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("RefreshImageCache"))) { notification in
             // 处理直接针对此事件的通知
-            if let eventId = notification.userInfo?["eventId"] as? UUID, eventId == event.id {
-                print("子事件卡片：收到刷新图片缓存通知，事件ID: \(event.id)")
+            if let eventId = notification.userInfo?["eventId"] as? UUID, eventId == childEvent.id {
                 refreshCardImage()
             }
             // 处理全局缓存刷新
             else if notification.userInfo?["clearAllCache"] as? Bool == true {
-                print("子事件卡片：收到全局缓存刷新通知")
                 refreshCardImage()
             }
         }
         // 监听事件更新通知
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("EventUpdated"))) { notification in
-            if let eventId = notification.userInfo?["eventId"] as? UUID, eventId == event.id {
-                print("子事件卡片：收到事件更新通知，事件ID: \(event.id)")
+            if let eventId = notification.userInfo?["eventId"] as? UUID, eventId == childEvent.id {
                 refreshCardImage()
             }
-            // 如果是父事件更新，也需要刷新子事件卡片
-            else if let parentId = event.parentId, let updatedEventId = notification.userInfo?["eventId"] as? UUID, parentId == updatedEventId {
-                print("子事件卡片：父事件更新，刷新子事件，子事件ID: \(event.id)，父事件ID: \(parentId)")
-                refreshCardImage()
-            }
-        }
-        // 监听应用重新激活
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-            refreshCardImage()
         }
     }
     
     // 刷新卡片图片的辅助方法
     private func refreshCardImage() {
         displayImage = nil
-        if let imageName = event.imageName {
+        if let imageName = childEvent.imageName {
             loadImage(named: imageName)
         }
     }
@@ -2092,7 +2126,7 @@ struct ChildEventCard: View {
         isLoading = true
         
         // 先检查缓存
-        if let cachedImage = eventStore.imageCache.getImage(for: imageName, with: event) {
+        if let cachedImage = eventStore.imageCache.getImage(for: imageName, with: childEvent) {
             self.displayImage = cachedImage
             self.isLoading = false
             return
@@ -2100,19 +2134,19 @@ struct ChildEventCard: View {
         
         // 从文档目录加载图片
         DispatchQueue.global(qos: .userInitiated).async {
-            if let image = self.loadImageFromDocumentDirectory(named: imageName) {
+            if let image = loadImageFromDocumentDirectory(named: imageName) {
                 var processedImage: UIImage?
                 
                 // 处理图片
-                if let frameStyleName = event.frameStyleName,
+                if let frameStyleName = childEvent.frameStyleName,
                    let frameStyle = FrameStyle(rawValue: frameStyleName),
                    frameStyle.usesMaskOrFrame {
                     // 使用模板生成器处理图片
                     processedImage = TemplateImageGenerator.shared.generateTemplateImage(
                         originalImage: image,
                         frameStyle: frameStyle,
-                        scale: event.imageScale,
-                        offset: CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
+                        scale: childEvent.imageScale,
+                        offset: CGSize(width: childEvent.imageOffsetX, height: childEvent.imageOffsetY)
                     )
                 } else {
                     // 简单处理
@@ -2121,7 +2155,7 @@ struct ChildEventCard: View {
                 
                 // 缓存处理后的图片
                 if let processedImage = processedImage {
-                    eventStore.imageCache.setImage(processedImage, for: imageName, with: event)
+                    eventStore.imageCache.setImage(processedImage, for: imageName, with: childEvent)
                     
                     // 在主线程更新UI
                     DispatchQueue.main.async {
@@ -2136,35 +2170,22 @@ struct ChildEventCard: View {
             }
         }
     }
-    
-    // 从文档目录加载图片
-    private func loadImageFromDocumentDirectory(named: String) -> UIImage? {
-        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        
-        let fileURL = documentsDirectory.appendingPathComponent(named)
-        
-        do {
-            let imageData = try Data(contentsOf: fileURL)
-            return UIImage(data: imageData)
-        } catch {
-            print("加载图片失败: \(error)")
-            return nil
-        }
+}
+
+// 从文档目录加载图片的辅助函数
+private func loadImageFromDocumentDirectory(named: String) -> UIImage? {
+    guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+        return nil
     }
     
-    // 子事件列表中使用的ID生成辅助方法
-    private func generateChildEventId(for event: Event) -> String {
-        let baseId = event.id.uuidString
-        let nameId = event.name
-        let imageId = event.imageName ?? "none"
-        let frameId = event.frameStyleName ?? "none"
-        let scaleId = String(format: "%.2f", event.imageScale)
-        let offsetXId = String(format: "%.0f", event.imageOffsetX)
-        let offsetYId = String(format: "%.0f", event.imageOffsetY)
-        
-        return "\(baseId)-\(nameId)-\(imageId)-\(frameId)-\(scaleId)-\(offsetXId)-\(offsetYId)"
+    let fileURL = documentsDirectory.appendingPathComponent(named)
+    
+    do {
+        let imageData = try Data(contentsOf: fileURL)
+        return UIImage(data: imageData)
+    } catch {
+        print("加载图片失败: \(error)")
+        return nil
     }
 }
 
