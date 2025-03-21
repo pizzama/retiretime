@@ -218,7 +218,7 @@ struct EventListView: View {
                 GridItem(.flexible())
             ], spacing: 12) {
                 ForEach(allEvents) { event in
-                    NavigationLink(destination: EventDetailView(event: event, eventStore: eventStore)) {
+                    NavigationLink(destination: EventDetailView(eventStore: eventStore, event: event)) {
                         eventCard(for: event)
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -240,7 +240,7 @@ struct EventListView: View {
                 GridItem(.flexible())
             ], spacing: 12) {
                 ForEach(events) { event in
-                    NavigationLink(destination: EventDetailView(event: event, eventStore: eventStore)) {
+                    NavigationLink(destination: EventDetailView(eventStore: eventStore, event: event)) {
                         eventCard(for: event)
                     }
                     .buttonStyle(PlainButtonStyle())

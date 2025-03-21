@@ -379,9 +379,6 @@ struct EventFormView: View {
     
     // 保存事件
     private func saveEvent() {
-        // 创建新事件或更新现有事件
-        let event: Event
-        
         // 计算实际的提醒日期
         var finalReminderDate: Date? = nil
         if reminderEnabled {
@@ -406,43 +403,57 @@ struct EventFormView: View {
         
         if let editingEvent = editingEvent {
             // 更新现有事件
-            event = Event(
-                id: editingEvent.id,
+            var event = Event(
                 name: name,
                 date: date,
-                type: type,
-                calendarType: calendarType,
                 notes: notes,
-                reminderEnabled: reminderEnabled,
-                reminderDate: finalReminderDate,
-                reminderOffset: reminderOffset,
-                notificationSound: reminderEnabled ? notificationSound : nil,
-                vibrationEnabled: vibrationEnabled,
-                category: category,
-                repeatType: repeatType,
-                lastOccurrence: editingEvent.lastOccurrence,
-                birthDate: type == .retirement ? birthDate : nil,
-                gender: type == .retirement ? gender : nil
+                type: type,
+                category: editingEvent.category
             )
+            
+            // 设置其他属性
+            event.id = editingEvent.id
+            event.calendarType = calendarType
+            event.reminderEnabled = reminderEnabled
+            event.reminderDate = finalReminderDate
+            event.reminderOffset = reminderOffset
+            event.notificationSound = reminderEnabled ? notificationSound : nil
+            event.vibrationEnabled = vibrationEnabled
+            event.createdAt = editingEvent.createdAt
+            event.birthDate = editingEvent.birthDate
+            event.gender = type == .retirement ? gender : nil
+            event.frameStyleName = editingEvent.frameStyleName
+            event.frameBackgroundName = editingEvent.frameBackgroundName
+            event.imageName = editingEvent.imageName
+            event.imageData = editingEvent.imageData
+            event.imageScale = editingEvent.imageScale
+            event.imageOffsetX = editingEvent.imageOffsetX
+            event.imageOffsetY = editingEvent.imageOffsetY
+            
             eventStore.updateEvent(event)
         } else {
             // 创建新事件
-            event = Event(
+            var event = Event(
                 name: name,
                 date: date,
-                type: type,
-                calendarType: calendarType,
                 notes: notes,
-                reminderEnabled: reminderEnabled,
-                reminderDate: finalReminderDate,
-                reminderOffset: reminderOffset,
-                notificationSound: reminderEnabled ? notificationSound : nil,
-                vibrationEnabled: vibrationEnabled,
-                category: category,
-                repeatType: repeatType,
-                birthDate: type == .retirement ? birthDate : nil,
-                gender: type == .retirement ? gender : nil
+                type: type
             )
+            
+            // 设置其他属性
+            event.calendarType = calendarType
+            event.reminderEnabled = reminderEnabled
+            event.reminderDate = finalReminderDate
+            event.reminderOffset = reminderOffset
+            event.notificationSound = reminderEnabled ? notificationSound : nil
+            event.vibrationEnabled = vibrationEnabled
+            event.category = category
+            event.repeatType = repeatType
+            if type == .retirement {
+                event.birthDate = birthDate
+                event.gender = gender
+            }
+            
             eventStore.addEvent(event)
         }
     }

@@ -51,6 +51,15 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
         completionHandler()
     }
     
+    // 当用户点击通知时调用此方法 - 用于重置通知徽章
+    func userDidInteractWithNotification() {
+        // 重置应用图标上的通知徽章
+        DispatchQueue.main.async {
+            UIApplication.shared.applicationIconBadgeNumber = 0
+            print("用户点击通知后已重置应用图标通知徽章")
+        }
+    }
+    
     // 检查通知授权状态
     func checkAuthorizationStatus() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
@@ -106,7 +115,7 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
         }
     }
     
-    // 请求通知权限
+    // 请求通知授权
     func requestAuthorization() {
         print("开始请求通知权限")
         // 在iOS真机上，需要确保请求所有必要的通知权限
@@ -137,12 +146,14 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
         UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
             print("当前待处理通知数量: \(requests.count)")
             for request in requests {
-                print("通知ID: \(request.identifier)")
+                print("- 通知ID: \(request.identifier)")
                 if let trigger = request.trigger as? UNCalendarNotificationTrigger {
-                    let components = trigger.dateComponents
-                    print("  触发时间: \(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0) \(components.hour ?? 0):\(components.minute ?? 0)")
-                    print("  是否重复: \(trigger.repeats)")
+                    let dateComponents = trigger.dateComponents
+                    print("  触发时间: \(dateComponents)")
                 }
+                print("  标题: \(request.content.title)")
+                print("  内容: \(request.content.body)")
+                print("---")
             }
         }
     }
@@ -151,7 +162,7 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
     func scheduleNotification(for event: Event) {
         // 首先检查通知权限
         UNUserNotificationCenter.current().getNotificationSettings { settings in
-            DispatchQueue.main.async {
+            let workItem = DispatchWorkItem {
                 // 如果没有通知权限，记录并尝试请求
                 if settings.authorizationStatus != .authorized {
                     print("⚠️ 警告：没有通知权限，无法创建通知。当前状态: \(settings.authorizationStatus.rawValue)")
@@ -190,20 +201,15 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
                     content.subtitle = event.notes
                 }
                 
-                // 设置声音
-                if let soundSetting = event.notificationSound {
-                    content.sound = soundSetting.sound
-                    print("为事件\(event.name)设置通知声音: \(soundSetting.rawValue)")
-                } else {
-                    content.sound = UNNotificationSound.default
-                    print("为事件\(event.name)设置默认通知声音")
-                }
+                // 设置声音 - 使用默认声音
+                content.sound = UNNotificationSound.default
+                print("为事件\(event.name)设置默认通知声音")
                 
                 // 设置通知类别（对于iOS真机通知显示很重要）
                 content.categoryIdentifier = "EVENT_REMINDER"
                 
-                // 设置震动和标识符（通过userInfo传递）
-                content.userInfo = ["vibrate": event.vibrationEnabled, "eventId": event.id.uuidString]
+                // 设置标识符（通过userInfo传递）
+                content.userInfo = ["vibrate": true, "eventId": event.id.uuidString]
                 
                 // 设置徽章数字
                 content.badge = 1
@@ -245,6 +251,8 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
                     }
                 }
             }
+            
+            DispatchQueue.main.async(execute: workItem)
         }
     }
     
@@ -263,8 +271,8 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
     
     // 计算提醒日期
     func calculateReminderDate(eventDate: Date, offset: ReminderOffset) -> Date {
-        let result = eventDate.addingTimeInterval(offset.timeInterval)
-        print("计算提醒日期: 事件日期=\(eventDate), 偏移=\(offset.rawValue), 结果=\(result)")
-        return result
+        // 根据偏移类型计算提醒时间
+        let reminderDate = eventDate.addingTimeInterval(offset.timeInterval)
+        return reminderDate
     }
 }

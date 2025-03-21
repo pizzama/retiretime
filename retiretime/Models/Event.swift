@@ -112,31 +112,47 @@ public struct Event: Identifiable, Codable {
     public var id = UUID()
     public var name: String
     public var date: Date
-    public var type: EventType
-    public var calendarType: CalendarType = .gregorian // 日历类型，默认为公历
+    public var calendarType: CalendarType = .gregorian
+    public var repeatType: RepeatType = .none
     public var notes: String = ""
+    public var createdAt: Date = Date()
+    public var type: EventType
+    public var category: String = "未分类"
+    public var colorData: CodableColor? = nil // 编码后的颜色数据
+    public var icon: String? = nil // 自定义图标
+    public var imageName: String?
+    public var imageData: Data?
     public var reminderEnabled: Bool = false
     public var reminderDate: Date?
     public var reminderOffset: ReminderOffset = .atTime // 提醒时间偏移
     public var notificationSound: NotificationSound? = .default // 通知声音
     public var vibrationEnabled: Bool = true // 是否启用震动
-    public var category: String = "未分类"
-    public var colorData: CodableColor? = nil // 编码后的颜色数据
-    public var icon: String? = nil // 自定义图标
-    public var repeatType: RepeatType = .none // 重复类型
-    public var lastOccurrence: Date? = nil // 上次发生日期，用于计算下次重复日期
-    public var imageName: String? = nil // 图片名称
-    public var frameStyleName: String? = nil // 相框样式名称
     public var parentId: UUID? = nil // 父事件ID，如果有的话
     
-    // 照片调整属性
-    public var imageScale: CGFloat = 1.0 // 图片缩放比例
-    public var imageOffsetX: CGFloat = 0.0 // 图片X轴偏移
-    public var imageOffsetY: CGFloat = 0.0 // 图片Y轴偏移
+    // 添加相框相关属性
+    public var frameStyleName: String?
+    public var frameBackgroundName: String? // 添加背景板名称属性
+    
+    // 照片调整相关属性
+    public var imageScale: CGFloat = 1.0
+    public var imageOffsetX: CGFloat = 0.0
+    public var imageOffsetY: CGFloat = 0.0
     
     // 退休日特有属性
     public var birthDate: Date? = nil // 出生日期
     public var gender: Gender? = nil // 性别
+    public var lastOccurrence: Date? = nil // 上次发生日期，用于计算下次重复日期
+    
+    // 初始化方法
+    public init(name: String, date: Date, notes: String = "", type: EventType, category: String = "未分类") {
+        self.id = UUID()
+        self.name = name
+        self.date = date
+        self.notes = notes
+        self.type = type
+        self.category = category
+        self.createdAt = Date()
+    }
     
     // 判断是否为子事件
     public var isChildEvent: Bool {
@@ -195,21 +211,10 @@ public struct Event: Identifiable, Codable {
     
     // 获取显示的颜色
     public var displayColor: Color {
-        return color ?? type.color
-    }
-    
-    // 计算属性，用于访问和设置颜色
-    public var color: Color? {
-        get {
-            colorData?.color
+        if let colorData = colorData {
+            return colorData.color
         }
-        set {
-            if let newValue = newValue {
-                colorData = CodableColor(color: newValue)
-            } else {
-                colorData = nil
-            }
-        }
+        return type.color
     }
     
     public var remainingDays: Int {
@@ -224,6 +229,13 @@ public struct Event: Identifiable, Codable {
 extension Event: Equatable {
     public static func == (lhs: Event, rhs: Event) -> Bool {
         return lhs.id == rhs.id
+    }
+}
+
+// 实现Hashable协议
+extension Event: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 }
 
@@ -272,7 +284,7 @@ public extension Event {
         let birthDate = calendar.date(from: birthDateComponents)!
         
         // 计算退休日期 - 男性60岁退休
-        let retirementAge = Gender.male.retirementAge
+        let retirementAge = Gender.male.retirementAge(birthYear: currentYear - 30)
         var retirementDateComponents = DateComponents()
         retirementDateComponents.year = birthDateComponents.year! + retirementAge // 根据出生年份和退休年龄计算
         retirementDateComponents.month = birthDateComponents.month
@@ -291,18 +303,18 @@ public extension Event {
         let entryDate = calendar.date(from: entryDateComponents)!
         let pastDate2 = calendar.date(byAdding: .day, value: -30, to: today)!
         
-        var event1 = Event(name: "退休日", date: retirementDate, type: .retirement, notes: "期待已久的退休日", category: "个人")
+        var event1 = Event(name: "退休日", date: retirementDate, notes: "期待已久的退休日", type: .retirement, category: "个人")
         event1.birthDate = birthDate
         event1.gender = .male
         event1.frameStyleName = "花朵"
         
-        var event2 = Event(name: "结婚纪念日", date: pastDate1, type: .countdown, notes: "美好的一天", category: "家庭")
+        var event2 = Event(name: "结婚纪念日", date: pastDate1, notes: "美好的一天", type: .countdown, category: "家庭")
         event2.frameStyleName = "心形"
         
-        var event3 = Event(name: "生日", date: futureDate2, type: .countdown, notes: "又要长一岁了", category: "个人")
+        var event3 = Event(name: "生日", date: futureDate2, notes: "又要长一岁了", type: .countdown, category: "个人")
         event3.frameStyleName = "星形"
         
-        var event4 = Event(name: "入职日", date: entryDate, type: .countdown, notes: "开始新工作的日子", category: "工作")
+        var event4 = Event(name: "入职日", date: entryDate, notes: "开始新工作的日子", type: .countdown, category: "工作")
         event4.frameStyleName = "经典"
         
         return [event1, event2, event3, event4]

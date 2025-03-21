@@ -575,21 +575,21 @@ class EventStore: ObservableObject {
     }
     
     // 创建子事件
-    func createChildEvent(for parentEvent: Event, name: String, date: Date) -> Event {
-        // 创建一个新的子事件，继承父事件的一些属性
+    func createChildEvent(parentEvent: Event, name: String, date: Date, notes: String = "") -> Event {
         var childEvent = Event(
             name: name,
             date: date,
+            notes: notes,
             type: parentEvent.type,
-            calendarType: parentEvent.calendarType,
             category: parentEvent.category
         )
         
         // 设置父事件ID
         childEvent.parentId = parentEvent.id
         
-        // 添加新事件
-        addEvent(childEvent)
+        // 添加到事件列表并保存
+        events.append(childEvent)
+        saveEvents()
         
         return childEvent
     }

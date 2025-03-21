@@ -120,6 +120,52 @@ enum FrameStyle: String, CaseIterable, Identifiable {
     }
 }
 
+// 定义背景板样式枚举
+enum FrameBackground: String, CaseIterable, Identifiable {
+    case none = "无背景"
+    case frame_bar1 = "frame_bar1"
+    case frame_bar2 = "frame_bar2"
+    case frame_bar3 = "frame_bar3"
+    
+    var id: String { self.rawValue }
+    
+    // 背景图片名称
+    var backgroundImageName: String? {
+        switch self {
+        case .none: return nil
+        default: return self.rawValue
+        }
+    }
+    
+    // 背景颜色
+    var backgroundColor: Color {
+        switch self {
+        case .none: return Color.clear
+        case .frame_bar1: return Color.blue.opacity(0.7)
+        case .frame_bar2: return Color.pink.opacity(0.7)
+        case .frame_bar3: return Color.green.opacity(0.7)
+        }
+    }
+    
+    // 装饰符号
+    var decorationSymbol: String {
+        switch self {
+        case .none: return ""
+        case .frame_bar1: return "star.fill"
+        case .frame_bar2: return "heart.fill"
+        case .frame_bar3: return "leaf.fill"
+        }
+    }
+}
+
+// 装饰类型枚举
+enum DecorationType: String, CaseIterable, Identifiable {
+    case none = "无装饰"
+    case polaroid = "拍立得"
+    
+    var id: String { self.rawValue }
+}
+
 struct EventDetailView: View {
     let event: Event
     @ObservedObject var eventStore: EventStore
@@ -134,6 +180,8 @@ struct EventDetailView: View {
     @State private var showingPreview = false
     @State private var activeSheet: ActiveSheet? = nil
     @State private var eventId: UUID
+    @State private var selectedFrameBackground: FrameBackground = .none
+    @State private var showingBackgroundPicker = false
     
     // 添加照片刷新相关状态变量
     @State private var displayImage: UIImage? = nil
@@ -153,22 +201,24 @@ struct EventDetailView: View {
     enum ActiveSheet: Identifiable {
         case photosPicker
         case framePicker
+        case backgroundPicker
         case editSheet
-        case childEventForm
         case preview
+        case childEventForm
         
         var id: Int {
             switch self {
             case .photosPicker: return 1
             case .framePicker: return 2
-            case .editSheet: return 3
-            case .childEventForm: return 4
+            case .backgroundPicker: return 3
+            case .editSheet: return 4
             case .preview: return 5
+            case .childEventForm: return 6
             }
         }
     }
     
-    init(event: Event, eventStore: EventStore) {
+    init(eventStore: EventStore, event: Event) {
         self.event = event
         self.eventStore = eventStore
         self._eventId = State(initialValue: event.id)
@@ -178,6 +228,13 @@ struct EventDetailView: View {
             _selectedFrameStyle = State(initialValue: style)
         } else {
             _selectedFrameStyle = State(initialValue: .template)
+        }
+        
+        // 根据event中保存的frameBackgroundName设置初始背景板样式
+        if let frameBackgroundName = event.frameBackgroundName, let background = FrameBackground(rawValue: frameBackgroundName) {
+            _selectedFrameBackground = State(initialValue: background)
+        } else {
+            _selectedFrameBackground = State(initialValue: .none)
         }
     }
     
@@ -230,6 +287,23 @@ struct EventDetailView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .background(Color.green)
+                            .cornerRadius(20)
+                        }
+                        
+                        // 背景板选择按钮
+                        Button(action: {
+                            activeSheet = .backgroundPicker
+                        }) {
+                            HStack {
+                                Image(systemName: "rectangle.fill.on.rectangle.fill")
+                                    .font(.system(size: 14))
+                                Text("更换背景")
+                                    .font(.system(size: 14))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.purple)
                             .cornerRadius(20)
                         }
                     }
@@ -285,7 +359,7 @@ struct EventDetailView: View {
                         
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                             ForEach(childEvents) { childEvent in
-                                NavigationLink(destination: ChildEventDetailView(event: childEvent, eventStore: eventStore)) {
+                                NavigationLink(destination: ChildEventDetailView(eventStore: eventStore, event: childEvent)) {
                                     ChildEventCard(event: childEvent, eventStore: eventStore)
                                 }
                                 // 为每个导航链接添加ID，确保在事件数据更新时视图能正确刷新
@@ -335,57 +409,21 @@ struct EventDetailView: View {
                     activeSheet = nil
                 }
             case .framePicker:
-                FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: currentEvent, eventStore: eventStore)
-                    .onDisappear {
-                        // 不再需要刷新currentEvent，因为它现在是计算属性
-                        activeSheet = nil
-                    }
+                FramePickerView(event: currentEvent, selectedStyle: $selectedFrameStyle, eventStore: eventStore)
+            case .backgroundPicker:
+                BackgroundPickerView(event: currentEvent, selectedBackground: $selectedFrameBackground, eventStore: eventStore)
             case .editSheet:
-                if currentEvent.isChildEvent {
-                    ChildEventEditView(eventStore: eventStore, childEvent: currentEvent)
-                        .onDisappear {
-                            activeSheet = nil
-                        }
-                } else {
-                    EventEditView(eventStore: eventStore, event: currentEvent)
-                        .onDisappear {
-                            activeSheet = nil
-                        }
-                }
+                EventEditView(eventStore: eventStore, event: currentEvent)
+            case .preview:
+                PreviewView(
+                    eventStore: eventStore,
+                    event: currentEvent,
+                    image: selectedImage,
+                    frameStyle: selectedFrameStyle,
+                    frameBackground: selectedFrameBackground
+                )
             case .childEventForm:
                 ChildEventFormView(parentEvent: currentEvent, eventStore: eventStore)
-                    .onDisappear {
-                        // 表单关闭时刷新子事件列表
-                        activeSheet = nil
-                    }
-            case .preview:
-                if let image = selectedImage {
-                    PhotoPreviewView(
-                        image: image,
-                        event: currentEvent,
-                        eventStore: eventStore,
-                        frameStyle: selectedFrameStyle
-                    )
-                    .onDisappear {
-                        // 清除预览状态
-                        showingPreview = false
-                        // 不再需要刷新currentEvent，因为它现在是计算属性
-                        activeSheet = nil
-                    }
-                } else {
-                    // 如果图片为空，显示错误信息
-                    VStack {
-                        Text("错误：无法加载图片")
-                            .foregroundColor(.red)
-                            .padding()
-                        
-                        Button("关闭") {
-                            showingPreview = false
-                            activeSheet = nil
-                        }
-                        .padding()
-                    }
-                }
             }
         }
         .onChange(of: showingPreview) { newValue in
@@ -490,14 +528,40 @@ struct EventDetailView: View {
             
             // 拍立得白底部分
             VStack(spacing: 4) {
-                // 事件名称
-                Text(currentEvent.name)
-                    .font(.system(size: 20, weight: .bold))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 16)
-                    .foregroundColor(.black)
+                // 事件名称和背景板
+                ZStack(alignment: .center) {
+                    // 背景板
+                    if selectedFrameBackground != .none, let backgroundName = selectedFrameBackground.backgroundImageName {
+                        Image(backgroundName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 220, height: 40)
+                            .overlay(
+                                // 装饰符号（如果有）
+                                Image(systemName: selectedFrameBackground.decorationSymbol)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                                    .opacity(0.8)
+                                    .padding(.trailing, 180),
+                                alignment: .center
+                            )
+                    } else {
+                        // 无背景时的占位视图
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: 220, height: 40)
+                    }
+                    
+                    // 事件名称
+                    Text(currentEvent.name)
+                        .font(.system(size: 20, weight: .bold))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.horizontal, 10)
+                        .foregroundColor(selectedFrameBackground == .none ? .black : .white)
+                        .shadow(color: selectedFrameBackground == .none ? .clear : .black.opacity(0.5), radius: 1, x: 0, y: 1)
+                }
+                .padding(.top, 5)
                 
                 // 备注（如果有）
                 if !currentEvent.notes.isEmpty {
@@ -1033,14 +1097,14 @@ struct PhotoPreviewView: View {
                             
                             // 获取最新的事件数据再更新
                             if var updatedEvent = eventStore.getEvent(by: event.id) {
-                                updatedEvent.imageName = imageName
-                                updatedEvent.imageScale = imageScale
-                                updatedEvent.imageOffsetX = imageOffset.width
-                                updatedEvent.imageOffsetY = imageOffset.height
+                            updatedEvent.imageName = imageName
+                            updatedEvent.imageScale = imageScale
+                            updatedEvent.imageOffsetX = imageOffset.width
+                            updatedEvent.imageOffsetY = imageOffset.height
                                 updatedEvent.frameStyleName = frameStyle.rawValue
                                 
                                 // 更新事件存储
-                                eventStore.updateEvent(updatedEvent)
+                            eventStore.updateEvent(updatedEvent)
                                 print("update event::\(updatedEvent.id)::\(updatedEvent.imageName ?? "无")")
                                 
                                 // 发送通知，让所有使用此事件的视图都能刷新
@@ -1183,17 +1247,17 @@ struct PhotoPicker: UIViewControllerRepresentable {
 
 // 头像框选择视图
 struct FramePickerView: View {
-    @Binding var selectedFrameStyle: FrameStyle
     @Environment(\.presentationMode) var presentationMode
     var event: Event
-    var eventStore: EventStore
+    @Binding var selectedStyle: FrameStyle
+    @ObservedObject var eventStore: EventStore
     
     var body: some View {
         NavigationView {
             List {
                 ForEach(FrameStyle.allCases) { style in
                     Button(action: {
-                        selectedFrameStyle = style
+                        selectedStyle = style
                         
                         // 更新Event对象和保存
                         var updatedEvent = event
@@ -1297,7 +1361,7 @@ struct FramePickerView: View {
                             
                             Spacer()
                             
-                            if selectedFrameStyle == style {
+                            if selectedStyle == style {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundColor(.blue)
                                     .font(.system(size: 22))
@@ -1305,7 +1369,7 @@ struct FramePickerView: View {
                         }
                         .padding(.vertical, 8)
                         .background(
-                            selectedFrameStyle == style ?
+                            selectedStyle == style ?
                                 RoundedRectangle(cornerRadius: 8)
                                 .fill(Color.blue.opacity(0.1))
                                 : nil
@@ -1320,14 +1384,6 @@ struct FramePickerView: View {
             })
         }
     }
-}
-
-// 装饰类型枚举
-enum DecorationType: String, CaseIterable, Identifiable {
-    case none = "无装饰"
-    case polaroid = "拍立得"
-    
-    var id: String { self.rawValue }
 }
 
 // 子事件创建表单
@@ -1351,7 +1407,7 @@ struct ChildEventFormView: View {
                     Button("创建子事件") {
                         if !name.isEmpty {
                             // 创建子事件
-                            _ = eventStore.createChildEvent(for: parentEvent, name: name, date: date)
+                            _ = eventStore.createChildEvent(parentEvent: parentEvent, name: name, date: date)
                             presentationMode.wrappedValue.dismiss()
                         }
                     }
@@ -1382,6 +1438,8 @@ struct ChildEventDetailView: View {
     @State private var activeSheet: ActiveSheet? = nil
     @Environment(\.presentationMode) var presentationMode
     @State private var eventId: UUID
+    @State private var selectedFrameBackground: FrameBackground = .none
+    @State private var showingBackgroundPicker = false
     
     // 添加照片刷新相关状态变量
     @State private var displayImage: UIImage? = nil
@@ -1398,6 +1456,8 @@ struct ChildEventDetailView: View {
         case framePicker
         case editSheet
         case preview
+        case backgroundPicker
+        case childEventForm
         
         var id: Int {
             switch self {
@@ -1405,11 +1465,13 @@ struct ChildEventDetailView: View {
             case .framePicker: return 2
             case .editSheet: return 3
             case .preview: return 4
+            case .backgroundPicker: return 5
+            case .childEventForm: return 6
             }
         }
     }
     
-    init(event: Event, eventStore: EventStore) {
+    init(eventStore: EventStore, event: Event) {
         self.event = event
         self.eventStore = eventStore
         self._eventId = State(initialValue: event.id)
@@ -1419,6 +1481,13 @@ struct ChildEventDetailView: View {
             _selectedFrameStyle = State(initialValue: style)
         } else {
             _selectedFrameStyle = State(initialValue: .template)
+        }
+        
+        // 根据event中保存的frameBackgroundName设置初始背景板样式
+        if let frameBackgroundName = event.frameBackgroundName, let background = FrameBackground(rawValue: frameBackgroundName) {
+            _selectedFrameBackground = State(initialValue: background)
+        } else {
+            _selectedFrameBackground = State(initialValue: .none)
         }
     }
     
@@ -1473,6 +1542,23 @@ struct ChildEventDetailView: View {
                             .background(Color.green)
                             .cornerRadius(20)
                         }
+                        
+                        // 背景板选择按钮
+                        Button(action: {
+                            activeSheet = .backgroundPicker
+                        }) {
+                            HStack {
+                                Image(systemName: "rectangle.fill.on.rectangle.fill")
+                                    .font(.system(size: 14))
+                                Text("更换背景")
+                                    .font(.system(size: 14))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.purple)
+                            .cornerRadius(20)
+                        }
                     }
                     .padding(.top, 12)
                 }
@@ -1514,51 +1600,21 @@ struct ChildEventDetailView: View {
                     activeSheet = nil
                 }
             case .framePicker:
-                FramePickerView(selectedFrameStyle: $selectedFrameStyle, event: currentEvent, eventStore: eventStore)
-                    .onDisappear {
-                        // 不再需要刷新currentEvent，因为它现在是计算属性
-                        activeSheet = nil
-                    }
+                FramePickerView(event: currentEvent, selectedStyle: $selectedFrameStyle, eventStore: eventStore)
+            case .backgroundPicker:
+                BackgroundPickerView(event: currentEvent, selectedBackground: $selectedFrameBackground, eventStore: eventStore)
             case .editSheet:
-                if currentEvent.isChildEvent {
-                    ChildEventEditView(eventStore: eventStore, childEvent: currentEvent)
-                        .onDisappear {
-                            activeSheet = nil
-                        }
-                } else {
-                    EventEditView(eventStore: eventStore, event: currentEvent)
-                        .onDisappear {
-                            activeSheet = nil
-                        }
-                }
+                EventEditView(eventStore: eventStore, event: currentEvent)
             case .preview:
-                if let image = selectedImage {
-                    PhotoPreviewView(
-                        image: image,
-                        event: currentEvent,
-                        eventStore: eventStore,
-                        frameStyle: selectedFrameStyle
-                    )
-                    .onDisappear {
-                        // 清除预览状态
-                        showingPreview = false
-                        // 不再需要刷新currentEvent，因为它现在是计算属性
-                        activeSheet = nil
-                    }
-                } else {
-                    // 如果图片为空，显示错误信息
-                    VStack {
-                        Text("错误：无法加载图片")
-                            .foregroundColor(.red)
-                            .padding()
-                        
-                        Button("关闭") {
-                            showingPreview = false
-                            activeSheet = nil
-                        }
-                        .padding()
-                    }
-                }
+                PreviewView(
+                    eventStore: eventStore,
+                    event: currentEvent,
+                    image: selectedImage,
+                    frameStyle: selectedFrameStyle,
+                    frameBackground: selectedFrameBackground
+                )
+            case .childEventForm:
+                ChildEventFormView(parentEvent: currentEvent, eventStore: eventStore)
             }
         }
         .alert(isPresented: $showingDeleteAlert) {
@@ -1658,14 +1714,40 @@ struct ChildEventDetailView: View {
             
             // 拍立得白底部分
             VStack(spacing: 4) {
-                // 事件名称
-                Text(currentEvent.name)
-                    .font(.system(size: 20, weight: .bold))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 16)
-                    .foregroundColor(.black)
+                // 事件名称和背景板
+                ZStack(alignment: .center) {
+                    // 背景板
+                    if selectedFrameBackground != .none, let backgroundName = selectedFrameBackground.backgroundImageName {
+                        Image(backgroundName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 220, height: 40)
+                            .overlay(
+                                // 装饰符号（如果有）
+                                Image(systemName: selectedFrameBackground.decorationSymbol)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                                    .opacity(0.8)
+                                    .padding(.trailing, 180),
+                                alignment: .center
+                            )
+                    } else {
+                        // 无背景时的占位视图
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: 220, height: 40)
+                    }
+                    
+                    // 事件名称
+                    Text(currentEvent.name)
+                        .font(.system(size: 20, weight: .bold))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.horizontal, 10)
+                        .foregroundColor(selectedFrameBackground == .none ? .black : .white)
+                        .shadow(color: selectedFrameBackground == .none ? .clear : .black.opacity(0.5), radius: 1, x: 0, y: 1)
+                }
+                .padding(.top, 5)
                 
                 // 备注（如果有）
                 if !currentEvent.notes.isEmpty {
@@ -2276,8 +2358,147 @@ struct EventEditView: View {
     }
 }
 
+// 背景板选择视图
+struct BackgroundPickerView: View {
+    @Environment(\.presentationMode) var presentationMode
+    var event: Event
+    @Binding var selectedBackground: FrameBackground
+    @ObservedObject var eventStore: EventStore
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(FrameBackground.allCases) { background in
+                    Button(action: {
+                        selectedBackground = background
+                        
+                        // 更新Event对象和保存
+                        var updatedEvent = event
+                        updatedEvent.frameBackgroundName = background.rawValue
+                        eventStore.updateEvent(updatedEvent)
+                        
+                        // 发送通知，通知需要刷新图片缓存
+                        NotificationCenter.default.post(
+                            name: Notification.Name("RefreshImageCache"),
+                            object: nil,
+                            userInfo: ["eventId": event.id]
+                        )
+                        
+                        // 发送通知，让所有使用此事件的视图都能刷新
+                        NotificationCenter.default.post(
+                            name: Notification.Name("EventUpdated"),
+                            object: nil,
+                            userInfo: ["eventId": event.id]
+                        )
+                        
+                        print("已发送刷新图片缓存通知，事件ID: \(event.id)，背景板样式: \(background.rawValue)")
+                        
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        HStack {
+                            // 预览框
+                            ZStack {
+                                // 背景色
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(background.backgroundColor)
+                                    .frame(width: 100, height: 30)
+                                
+                                // 如果有背景图片，显示背景图片
+                                if background != .none, let backgroundName = background.backgroundImageName {
+                                    Image(backgroundName)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 100, height: 30)
+                                }
+                                
+                                // 显示装饰符号
+                                if background != .none && !background.decorationSymbol.isEmpty {
+                                    Image(systemName: background.decorationSymbol)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white)
+                                        .opacity(0.8)
+                                        .position(x: 20, y: 15)
+                                }
+                                
+                                // 示例文本
+                                Text("示例名称")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(background == .none ? .black : .white)
+                                    .shadow(color: background == .none ? .clear : .black.opacity(0.5), radius: 1, x: 0, y: 1)
+                            }
+                            .frame(width: 100, height: 30)
+                            .clipped()
+                            .cornerRadius(6)
+                            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(background.rawValue)
+                                    .font(.system(size: 16, weight: .medium))
+                                
+                                // 添加简短描述
+                                Text(background == .none ? "无背景样式" : "背景面板样式")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.leading, 10)
+                            
+                            Spacer()
+                            
+                            if selectedBackground == background {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.blue)
+                                    .font(.system(size: 22))
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedBackground == background ?
+                                RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.blue.opacity(0.1))
+                                : nil
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .navigationTitle("选择背景板样式")
+            .navigationBarItems(trailing: Button("取消") {
+                presentationMode.wrappedValue.dismiss()
+            })
+        }
+    }
+}
+
+// 添加预览视图
+struct PreviewView: View {
+    @Environment(\.presentationMode) var presentationMode
+    
+    let eventStore: EventStore
+    let event: Event
+    let image: UIImage?
+    let frameStyle: FrameStyle
+    let frameBackground: FrameBackground
+    
+    var body: some View {
+        NavigationView {
+            PhotoPreviewView(
+                image: image ?? UIImage(),
+                event: event,
+                eventStore: eventStore,
+                frameStyle: frameStyle
+            )
+        }
+    }
+}
+
 #Preview {
     NavigationView {
-        EventDetailView(event: Event.samples[0], eventStore: EventStore())
+        EventDetailView(eventStore: EventStore(), event: Event.samples[0])
+    }
+}
+
+#Preview {
+    NavigationView {
+        ChildEventDetailView(eventStore: EventStore(), event: Event.samples[0])
     }
 }
