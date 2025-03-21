@@ -883,299 +883,298 @@ struct PhotoPreviewView: View {
     var onDismiss: (() -> Void)? = nil
     
     var body: some View {
-        NavigationView {
-            VStack {
-                // 调试信息
-                if !debugMessage.isEmpty {
-                    Text(debugMessage)
-                        .foregroundColor(.red)
-                        .padding()
-                }
-                
-                // 预览区域
-                GeometryReader { geometry in
-                    ZStack {
-                        // 背景 - 使用与详情页相同的背景
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(frameStyle.backgroundGradient())
-                            .frame(width: 270, height: 350)
-                            .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
-                        
-                        // 相框边框
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(frameStyle.borderColor.opacity(0.3), lineWidth: 2)
-                            .frame(width: 270, height: 350)
-                        
-                        // 拍立得照片
-                        ZStack(alignment: .bottom) {
-                            // 照片部分
-                            ZStack {
-                                // 显示照片，应用缩放和偏移
-                                if frameStyle.usesMaskOrFrame {
-                                    // 使用蒙版或相框样式的预览
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .scaleEffect(imageScale)
-                                        .offset(imageOffset)
-                                        .frame(width: 240, height: 240)
-                                        .clipped()
-                                        .overlay(
-                                            // 显示相框或蒙版的轮廓
-                                            Group {
-                                                if let maskName = frameStyle.maskImageName {
-                                                    Image(maskName)
-                                                        .resizable()
-                                                        .scaledToFit()
-                                                        .opacity(0.85)
-                                                }
+        // 移除多余的NavigationView嵌套
+        VStack {
+            // 调试信息
+            if !debugMessage.isEmpty {
+                Text(debugMessage)
+                    .foregroundColor(.red)
+                    .padding()
+            }
+            
+            // 预览区域
+            GeometryReader { geometry in
+                ZStack {
+                    // 背景 - 使用与详情页相同的背景
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(frameStyle.backgroundGradient())
+                        .frame(width: 270, height: 350)
+                        .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
+                    
+                    // 相框边框
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(frameStyle.borderColor.opacity(0.3), lineWidth: 2)
+                        .frame(width: 270, height: 350)
+                    
+                    // 拍立得照片
+                    ZStack(alignment: .bottom) {
+                        // 照片部分
+                        ZStack {
+                            // 显示照片，应用缩放和偏移
+                            if frameStyle.usesMaskOrFrame {
+                                // 使用蒙版或相框样式的预览
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .scaleEffect(imageScale)
+                                    .offset(imageOffset)
+                                    .frame(width: 240, height: 240)
+                                    .clipped()
+                                    .overlay(
+                                        // 显示相框或蒙版的轮廓
+                                        Group {
+                                            if let maskName = frameStyle.maskImageName {
+                                                Image(maskName)
+                                                    .resizable()
+                                                    .scaledToFit()
+                                                    .opacity(0.85)
                                             }
-                                        )
-                                } else {
-                                    // 普通样式预览
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .scaleEffect(imageScale)
-                                        .offset(imageOffset)
-                                        .frame(width: 240, height: 240)
-                                        .clipped()
-                                }
+                                        }
+                                    )
+                            } else {
+                                // 普通样式预览
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .scaleEffect(imageScale)
+                                    .offset(imageOffset)
+                                    .frame(width: 240, height: 240)
+                                    .clipped()
                             }
-                            .frame(width: 240, height: 240)
-                            .padding(.bottom, 80)
+                        }
+                        .frame(width: 240, height: 240)
+                        .padding(.bottom, 80)
+                        
+                        // 拍立得白底部分
+                        VStack(spacing: 4) {
+                            // 事件名称
+                            Text(event.name)
+                                .font(.system(size: 20, weight: .bold))
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .padding(.horizontal, 10)
+                                .padding(.top, 16)
+                                .foregroundColor(.black)
                             
-                            // 拍立得白底部分
-                            VStack(spacing: 4) {
-                                // 事件名称
-                                Text(event.name)
-                                    .font(.system(size: 20, weight: .bold))
+                            // 备注（如果有）
+                            if !event.notes.isEmpty {
+                                Text(event.notes)
+                                    .font(.system(size: 12))
+                                    .italic()
+                                    .foregroundColor(.gray)
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                                     .padding(.horizontal, 10)
-                                    .padding(.top, 16)
-                                    .foregroundColor(.black)
-                                
-                                // 备注（如果有）
-                                if !event.notes.isEmpty {
-                                    Text(event.notes)
-                                        .font(.system(size: 12))
-                                        .italic()
-                                        .foregroundColor(.gray)
-                                        .multilineTextAlignment(.center)
-                                        .lineLimit(2)
-                                        .padding(.horizontal, 10)
-                                }
-                                
-                                // 剩余/已过天数
-                                Text(event.daysRemaining == 0 ? "今天" : 
-                                     (event.isCountdown ? "还有\(abs(event.daysRemaining))天" : "已过\(abs(event.daysRemaining))天"))
-                                    .font(.custom("Noteworthy", size: 14))
-                                    .foregroundColor(event.isCountdown ? .green : .orange)
-                                    .padding(.top, 2)
-                                    .rotationEffect(.degrees(-2))
                             }
-                            .frame(width: 240, height: 80)
-                            .background(Color.white)
+                            
+                            // 剩余/已过天数
+                            Text(event.daysRemaining == 0 ? "今天" : 
+                                 (event.isCountdown ? "还有\(abs(event.daysRemaining))天" : "已过\(abs(event.daysRemaining))天"))
+                                .font(.custom("Noteworthy", size: 14))
+                                .foregroundColor(event.isCountdown ? .green : .orange)
+                                .padding(.top, 2)
+                                .rotationEffect(.degrees(-2))
                         }
-                        .frame(width: 240, height: 360)
+                        .frame(width: 240, height: 80)
                         .background(Color.white)
-                        .cornerRadius(8)
-                        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
-                        .rotationEffect(.degrees(2))
-                        // 将手势移到这里，应用于整个拍立得照片区域
-                        .gesture(
-                            MagnificationGesture()
-                                .onChanged { value in
-                                    let delta = value / lastImageScale
-                                    lastImageScale = value
-                                    imageScale = min(max(imageScale * delta, 0.5), 3.0)
-                                }
-                                .onEnded { _ in
-                                    lastImageScale = 1.0
-                                }
-                        )
-                        .simultaneousGesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    imageOffset = CGSize(
-                                        width: lastImageOffset.width + value.translation.width,
-                                        height: lastImageOffset.height + value.translation.height
-                                    )
-                                    // 设置拖动状态为true，减少视图更新
-                                    isDragging = true
-                                }
-                                .onEnded { _ in
-                                    lastImageOffset = imageOffset
-                                    // 拖动结束后恢复状态
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        isDragging = false
-                                    }
-                                }
-                        )
-                        
-                        // 根据选择的框样式添加装饰元素
-                        if frameStyle != .template && !frameStyle.usesMaskOrFrame {
-                            // 装饰元素 - 左上角
-                            if frameStyle.decorationSymbols.count > 0 {
-                                Image(systemName: frameStyle.decorationSymbols[0])
-                                    .foregroundColor(frameStyle.borderColor)
-                                    .font(.system(size: 20))
-                                    .position(x: 35, y: 35)
-                            }
-                            
-                            // 装饰元素 - 右上角
-                            if frameStyle.decorationSymbols.count > 1 {
-                                Image(systemName: frameStyle.decorationSymbols[1])
-                                    .foregroundColor(frameStyle.borderColor.opacity(0.7))
-                                    .font(.system(size: 18))
-                                    .position(x: 235, y: 35)
-                            }
-                            
-                            // 装饰元素 - 右下角
-                            if frameStyle.decorationSymbols.count > 2 {
-                                Image(systemName: frameStyle.decorationSymbols[2])
-                                    .foregroundColor(frameStyle.borderColor.opacity(0.8))
-                                    .font(.system(size: 16))
-                                    .position(x: 235, y: 315)
-                            }
-                            
-                            // 装饰元素 - 左下角
-                            if frameStyle.decorationSymbols.count > 3 {
-                                Image(systemName: frameStyle.decorationSymbols[3])
-                                    .foregroundColor(frameStyle.borderColor.opacity(0.6))
-                                    .font(.system(size: 16))
-                                    .position(x: 35, y: 315)
-                            }
-                        }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                
-                // 调整信息
-                // 只在非拖动状态下显示调整信息，减少视图更新频率
-                if !isDragging {
-                    Text("缩放: \(String(format: "%.1f", imageScale))x  位置: (\(String(format: "%.0f", imageOffset.width)), \(String(format: "%.0f", imageOffset.height)))")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                        .padding(.top, 8)
-                }
-                
-                // 控制按钮
-                HStack(spacing: 20) {
-                    Button(action: {
-                        // 重置缩放和位置
-                        withAnimation {
-                            imageScale = 1.0
-                            imageOffset = .zero
-                            lastImageScale = 1.0
-                            lastImageOffset = .zero
-                        }
-                    }) {
-                        Label("重置", systemImage: "arrow.counterclockwise")
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(Color.blue)
-                            .cornerRadius(20)
-                    }
+                    .frame(width: 240, height: 360)
+                    .background(Color.white)
+                    .cornerRadius(8)
+                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+                    .rotationEffect(.degrees(2))
+                    // 将手势移到这里，应用于整个拍立得照片区域
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                let delta = value / lastImageScale
+                                lastImageScale = value
+                                imageScale = min(max(imageScale * delta, 0.5), 3.0)
+                            }
+                            .onEnded { _ in
+                                lastImageScale = 1.0
+                            }
+                    )
+                    .simultaneousGesture(
+                        DragGesture()
+                            .onChanged { value in
+                                imageOffset = CGSize(
+                                    width: lastImageOffset.width + value.translation.width,
+                                    height: lastImageOffset.height + value.translation.height
+                                )
+                                // 设置拖动状态为true，减少视图更新
+                                isDragging = true
+                            }
+                            .onEnded { _ in
+                                lastImageOffset = imageOffset
+                                // 拖动结束后恢复状态
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    isDragging = false
+                                }
+                            }
+                    )
                     
-                    Button(action: {
-                        showingSaveAlert = true
-                    }) {
-                        Label("保存", systemImage: "checkmark")
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(Color.green)
-                            .cornerRadius(20)
+                    // 根据选择的框样式添加装饰元素
+                    if frameStyle != .template && !frameStyle.usesMaskOrFrame {
+                        // 装饰元素 - 左上角
+                        if frameStyle.decorationSymbols.count > 0 {
+                            Image(systemName: frameStyle.decorationSymbols[0])
+                                .foregroundColor(frameStyle.borderColor)
+                                .font(.system(size: 20))
+                                .position(x: 35, y: 35)
+                        }
+                        
+                        // 装饰元素 - 右上角
+                        if frameStyle.decorationSymbols.count > 1 {
+                            Image(systemName: frameStyle.decorationSymbols[1])
+                                .foregroundColor(frameStyle.borderColor.opacity(0.7))
+                                .font(.system(size: 18))
+                                .position(x: 235, y: 35)
+                        }
+                        
+                        // 装饰元素 - 右下角
+                        if frameStyle.decorationSymbols.count > 2 {
+                            Image(systemName: frameStyle.decorationSymbols[2])
+                                .foregroundColor(frameStyle.borderColor.opacity(0.8))
+                                .font(.system(size: 16))
+                                .position(x: 235, y: 315)
+                        }
+                        
+                        // 装饰元素 - 左下角
+                        if frameStyle.decorationSymbols.count > 3 {
+                            Image(systemName: frameStyle.decorationSymbols[3])
+                                .foregroundColor(frameStyle.borderColor.opacity(0.6))
+                                .font(.system(size: 16))
+                                .position(x: 35, y: 315)
+                        }
                     }
                 }
-                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .navigationTitle("调整照片")
-            .navigationBarItems(trailing: Button("取消") {
-                presentationMode.wrappedValue.dismiss()
-                // 在取消按钮中调用onDismiss回调
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    onDismiss?()
+            
+            // 调整信息
+            // 只在非拖动状态下显示调整信息，减少视图更新频率
+            if !isDragging {
+                Text("缩放: \(String(format: "%.1f", imageScale))x  位置: (\(String(format: "%.0f", imageOffset.width)), \(String(format: "%.0f", imageOffset.height)))")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .padding(.top, 8)
+            }
+            
+            // 控制按钮
+            HStack(spacing: 20) {
+                Button(action: {
+                    // 重置缩放和位置
+                    withAnimation {
+                        imageScale = 1.0
+                        imageOffset = .zero
+                        lastImageScale = 1.0
+                        lastImageOffset = .zero
+                    }
+                }) {
+                    Label("重置", systemImage: "arrow.counterclockwise")
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.blue)
+                        .cornerRadius(20)
                 }
-            })
-            .alert(isPresented: $showingSaveAlert) {
-                Alert(
-                    title: Text("保存照片"),
-                    message: Text("确定要保存这张照片吗？"),
-                    primaryButton: .default(Text("保存")) {
-                        // 保存照片和调整信息
-                        if let imageName = saveImageWithAdjustments() {
-                            print("成功保存图片: \(imageName), 缩放: \(imageScale), 偏移: \(imageOffset)")
-                            
-                            // 获取最新的事件数据再更新
-                            if var updatedEvent = eventStore.getEvent(by: event.id) {
-                            updatedEvent.imageName = imageName
-                            updatedEvent.imageScale = imageScale
-                            updatedEvent.imageOffsetX = imageOffset.width
-                            updatedEvent.imageOffsetY = imageOffset.height
-                                updatedEvent.frameStyleName = frameStyle.rawValue
-                                
-                                // 更新事件存储
-                            eventStore.updateEvent(updatedEvent)
-                                print("update event::\(updatedEvent.id)::\(updatedEvent.imageName ?? "无")")
-                                
-                                // 发送通知，让所有使用此事件的视图都能刷新
-                                NotificationCenter.default.post(
-                                    name: Notification.Name("EventUpdated"),
-                                    object: nil,
-                                    userInfo: [
-                                        "eventId": event.id,
-                                        "imageName": imageName,
-                                        "forceRefresh": true,
-                                        "event": updatedEvent
-                                    ]
-                                )
-                                
-                                // 发送图片缓存刷新通知
-                                NotificationCenter.default.post(
-                                    name: Notification.Name("RefreshImageCache"),
-                                    object: nil,
-                                    userInfo: [
-                                        "eventId": event.id,
-                                        "imageName": imageName,
-                                        "event": updatedEvent
-                                    ]
-                                )
-                                
-                                print("发送事件更新和图片缓存刷新通知")
-                                
-                                // 强制刷新图片缓存
-                                eventStore.imageCache.clearCache()
-                            }
-                            
-                            // 关闭视图
-                            presentationMode.wrappedValue.dismiss()
-                            // 调用onDismiss回调
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                onDismiss?()
-                            }
-                        }
-                    },
-                    secondaryButton: .cancel(Text("取消"))
-                )
-            }
-            .onAppear {
-                // 初始化缩放和位置
-                imageScale = event.imageScale > 0 ? event.imageScale : 1.0
-                imageOffset = CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
-                lastImageOffset = imageOffset
                 
-                // 检查图片是否有效
-                if image.size.width == 0 || image.size.height == 0 {
-                    debugMessage = "警告: 图片尺寸为零"
+                Button(action: {
+                    showingSaveAlert = true
+                }) {
+                    Label("保存", systemImage: "checkmark")
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.green)
+                        .cornerRadius(20)
                 }
+            }
+            .padding()
+        }
+        .navigationTitle("调整照片")
+        .navigationBarItems(trailing: Button("取消") {
+            presentationMode.wrappedValue.dismiss()
+            // 在取消按钮中调用onDismiss回调
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                onDismiss?()
+            }
+        })
+        .alert(isPresented: $showingSaveAlert) {
+            Alert(
+                title: Text("保存照片"),
+                message: Text("确定要保存这张照片吗？"),
+                primaryButton: .default(Text("保存")) {
+                    // 保存照片和调整信息
+                    if let imageName = saveImageWithAdjustments() {
+                        print("成功保存图片: \(imageName), 缩放: \(imageScale), 偏移: \(imageOffset)")
+                        
+                        // 获取最新的事件数据再更新
+                        if var updatedEvent = eventStore.getEvent(by: event.id) {
+                        updatedEvent.imageName = imageName
+                        updatedEvent.imageScale = imageScale
+                        updatedEvent.imageOffsetX = imageOffset.width
+                        updatedEvent.imageOffsetY = imageOffset.height
+                            updatedEvent.frameStyleName = frameStyle.rawValue
+                            
+                            // 更新事件存储
+                        eventStore.updateEvent(updatedEvent)
+                            print("update event::\(updatedEvent.id)::\(updatedEvent.imageName ?? "无")")
+                            
+                            // 发送通知，让所有使用此事件的视图都能刷新
+                            NotificationCenter.default.post(
+                                name: Notification.Name("EventUpdated"),
+                                object: nil,
+                                userInfo: [
+                                    "eventId": event.id,
+                                    "imageName": imageName,
+                                    "forceRefresh": true,
+                                    "event": updatedEvent
+                                ]
+                            )
+                            
+                            // 发送图片缓存刷新通知
+                            NotificationCenter.default.post(
+                                name: Notification.Name("RefreshImageCache"),
+                                object: nil,
+                                userInfo: [
+                                    "eventId": event.id,
+                                    "imageName": imageName,
+                                    "event": updatedEvent
+                                ]
+                            )
+                            
+                            print("发送事件更新和图片缓存刷新通知")
+                            
+                            // 强制刷新图片缓存
+                            eventStore.imageCache.clearCache()
+                        }
+                        
+                        // 关闭视图
+                        presentationMode.wrappedValue.dismiss()
+                        // 调用onDismiss回调
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            onDismiss?()
+                        }
+                    }
+                },
+                secondaryButton: .cancel(Text("取消"))
+            )
+        }
+        .onAppear {
+            // 初始化缩放和位置
+            imageScale = event.imageScale > 0 ? event.imageScale : 1.0
+            imageOffset = CGSize(width: event.imageOffsetX, height: event.imageOffsetY)
+            lastImageOffset = imageOffset
+            
+            // 检查图片是否有效
+            if image.size.width == 0 || image.size.height == 0 {
+                debugMessage = "警告: 图片尺寸为零"
             }
         }
     }
@@ -2612,14 +2611,7 @@ struct PreviewView: View {
                 event: event,
                 eventStore: eventStore,
                 frameStyle: frameStyle,
-                onDismiss: {
-                    // 先关闭当前视图
-                    presentationMode.wrappedValue.dismiss()
-                    // 然后调用外部传入的onDismiss回调
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        onDismiss?()
-                    }
-                }
+                onDismiss: onDismiss
             )
         }
     }
