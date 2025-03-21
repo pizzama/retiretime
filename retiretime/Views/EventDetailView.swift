@@ -357,7 +357,7 @@ struct EventDetailView: View {
                             .padding(.leading, 8)
                             .padding(.top, 16)
                         
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                             ForEach(childEvents.indices, id: \.self) { index in
                                 let childEvent = childEvents[index]
                                 NavigationLink(destination: ChildEventDetailView(eventStore: eventStore, event: childEvent)) {
@@ -2005,25 +2005,48 @@ struct ChildEventCard: View {
                     // 背景色
                     RoundedRectangle(cornerRadius: 8)
                         .fill(childEvent.type.color.opacity(0.1))
-                        .frame(height: 70)
+                        .frame(width: 140, height: 80)
                     
                     // 显示照片或图标
                     if let imageName = childEvent.imageName, !imageName.isEmpty {
                         if let image = displayImage {
-                            // 显示已处理的图片
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 70)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            // 相框效果
+                            if let frameStyleName = childEvent.frameStyleName, 
+                               let frameStyle = FrameStyle(rawValue: frameStyleName),
+                               frameStyle.usesMaskOrFrame {
+                                // 使用相框遮罩
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 140, height: 80)
+                                    .overlay(
+                                        Group {
+                                            if let maskName = frameStyle.maskImageName {
+                                                Image(maskName)
+                                                    .resizable()
+                                                    .scaledToFit()
+                                                    .frame(width: 140, height: 80)
+                                                    .opacity(0.85)
+                                            }
+                                        }
+                                    )
+                                    .cornerRadius(8)
+                            } else {
+                                // 普通显示
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 140, height: 80)
+                                    .cornerRadius(8)
+                            }
                         } else if isLoading {
                             // 加载中
                             ProgressView()
-                                .frame(height: 70)
+                                .frame(width: 140, height: 80)
                         } else {
                             // 默认占位符
                             Image(systemName: "photo")
-                                .font(.system(size: 24))
+                                .font(.system(size: 30))
                                 .foregroundColor(childEvent.type.color)
                                 .onAppear {
                                     loadImage(named: imageName)
@@ -2032,12 +2055,50 @@ struct ChildEventCard: View {
                     } else {
                         // 显示默认图标
                         Image(systemName: childEvent.type.icon)
-                            .font(.system(size: 24))
+                            .font(.system(size: 30))
                             .foregroundColor(childEvent.type.color)
                     }
+                    
+                    // 添加相框装饰元素
+                    if let frameStyleName = childEvent.frameStyleName, 
+                       let frameStyle = FrameStyle(rawValue: frameStyleName),
+                       !frameStyle.usesMaskOrFrame && !frameStyle.decorationSymbols.isEmpty {
+                        
+                        // 左上角装饰
+                        if frameStyle.decorationSymbols.count > 0 {
+                            Image(systemName: frameStyle.decorationSymbols[0])
+                                .font(.system(size: 16))
+                                .foregroundColor(frameStyle.borderColor)
+                                .position(x: 25, y: 15)
+                        }
+                        
+                        // 右上角装饰
+                        if frameStyle.decorationSymbols.count > 1 {
+                            Image(systemName: frameStyle.decorationSymbols[1])
+                                .font(.system(size: 16))
+                                .foregroundColor(frameStyle.borderColor.opacity(0.7))
+                                .position(x: 115, y: 15)
+                        }
+                        
+                        // 左下角装饰
+                        if frameStyle.decorationSymbols.count > 2 {
+                            Image(systemName: frameStyle.decorationSymbols[2])
+                                .font(.system(size: 16))
+                                .foregroundColor(frameStyle.borderColor.opacity(0.6))
+                                .position(x: 25, y: 65)
+                        }
+                        
+                        // 右下角装饰
+                        if frameStyle.decorationSymbols.count > 3 {
+                            Image(systemName: frameStyle.decorationSymbols[3])
+                                .font(.system(size: 16))
+                                .foregroundColor(frameStyle.borderColor.opacity(0.5))
+                                .position(x: 115, y: 65)
+                        }
+                    }
                 }
-                .frame(height: 70)
-                .padding(.bottom, 4)
+                .frame(width: 140, height: 80)
+                .padding(.bottom, 8)
                 
                 // 事件名称带背景板
                 ZStack(alignment: .center) {
@@ -2048,11 +2109,11 @@ struct ChildEventCard: View {
                         Image(frameBackground.backgroundImageName ?? "")
                             .resizable()
                             .scaledToFit()
-                            .frame(height: 26)
+                            .frame(height: 30)
                             .overlay(
                                 // 装饰符号（如果有）
                                 Image(systemName: frameBackground.decorationSymbol)
-                                    .font(.system(size: 12))
+                                    .font(.system(size: 14))
                                     .foregroundColor(.white)
                                     .opacity(0.8)
                                     .padding(.leading, -50),
@@ -2062,7 +2123,7 @@ struct ChildEventCard: View {
                         // 如果没有设置背景或设为"无背景"，则使用事件类型颜色
                         RoundedRectangle(cornerRadius: 4)
                             .fill(childEvent.type.color.opacity(0.15))
-                            .frame(height: 26)
+                            .frame(height: 30)
                     }
                     
                     // 事件名称
@@ -2073,6 +2134,7 @@ struct ChildEventCard: View {
                         .shadow(color: childEvent.frameBackgroundName != nil && childEvent.frameBackgroundName != "无背景" ? .black.opacity(0.5) : .clear, radius: 1, x: 0, y: 1)
                         .padding(.horizontal, 8)
                 }
+                .frame(width: 140)
                 
                 // 显示天数信息
                 Text(childEvent.formattedDays)
@@ -2088,6 +2150,7 @@ struct ChildEventCard: View {
             }
             .frame(width: 140)
         }
+        .frame(height: 150)
         .onAppear {
             // 当子事件卡片出现时，加载图片
             if let imageName = childEvent.imageName {

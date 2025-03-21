@@ -301,7 +301,7 @@ struct EventListView: View {
                 GridItem(.flexible()),
                 GridItem(.flexible()),
                 GridItem(.flexible())
-            ], spacing: 12) {
+            ], spacing: 16) {
                 ForEach(allEvents) { event in
                     NavigationLink(destination: EventDetailView(eventStore: eventStore, event: event)) {
                         eventCard(for: event)
@@ -321,11 +321,18 @@ struct EventListView: View {
         let events = eventStore.eventsInCategory(category, filter: selectedCategory)
         
         return VStack(alignment: .leading) {
+            // 分类标题
+            Text(category)
+                .font(.headline)
+                .padding(.leading, 4)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+            
             LazyVGrid(columns: [
                 GridItem(.flexible()),
                 GridItem(.flexible()),
                 GridItem(.flexible())
-            ], spacing: 12) {
+            ], spacing: 16) {
                 ForEach(events) { event in
                     NavigationLink(destination: EventDetailView(eventStore: eventStore, event: event)) {
                         eventCard(for: event)
@@ -348,6 +355,7 @@ struct EventListView: View {
                 // 背景色
                 RoundedRectangle(cornerRadius: 8)
                     .fill(event.type.color.opacity(0.1))
+                    .frame(width: 85, height: 85)
                 
                 // 事件类型图标或自定义图片
                 if let imageName = event.imageName, !imageName.isEmpty {
@@ -359,14 +367,15 @@ struct EventListView: View {
                             // 使用相框遮罩
                             Image(uiImage: image)
                                 .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 80, height: 80)
+                                .scaledToFill()
+                                .frame(width: 85, height: 85)
                                 .overlay(
                                     Group {
                                         if let maskName = frameStyle.maskImageName {
                                             Image(maskName)
                                                 .resizable()
-                                                .aspectRatio(contentMode: .fit)
+                                                .scaledToFit()
+                                                .frame(width: 85, height: 85)
                                                 .opacity(0.85)
                                         }
                                     }
@@ -377,7 +386,7 @@ struct EventListView: View {
                             Image(uiImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
-                                .frame(width: 80, height: 80)
+                                .frame(width: 85, height: 85)
                                 .cornerRadius(8)
                         }
                     } else {
@@ -403,22 +412,38 @@ struct EventListView: View {
                     // 左上角装饰
                     if frameStyle.decorationSymbols.count > 0 {
                         Image(systemName: frameStyle.decorationSymbols[0])
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .foregroundColor(frameStyle.borderColor)
-                            .position(x: 16, y: 16)
+                            .position(x: 18, y: 18)
                     }
                     
                     // 右上角装饰
                     if frameStyle.decorationSymbols.count > 1 {
                         Image(systemName: frameStyle.decorationSymbols[1])
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .foregroundColor(frameStyle.borderColor.opacity(0.7))
-                            .position(x: 64, y: 16)
+                            .position(x: 67, y: 18)
+                    }
+                    
+                    // 左下角装饰
+                    if frameStyle.decorationSymbols.count > 2 {
+                        Image(systemName: frameStyle.decorationSymbols[2])
+                            .font(.system(size: 14))
+                            .foregroundColor(frameStyle.borderColor.opacity(0.6))
+                            .position(x: 18, y: 67)
+                    }
+                    
+                    // 右下角装饰
+                    if frameStyle.decorationSymbols.count > 3 {
+                        Image(systemName: frameStyle.decorationSymbols[3])
+                            .font(.system(size: 14))
+                            .foregroundColor(frameStyle.borderColor.opacity(0.5))
+                            .position(x: 67, y: 67)
                     }
                 }
             }
-            .frame(width: 80, height: 80)
-            .padding(.bottom, 4)
+            .frame(width: 85, height: 85)
+            .padding(.bottom, 6)
             .id("image-\(event.id)-\(event.imageName ?? "")-\(event.frameStyleName ?? "")")
             
             // 事件名称带背景板
@@ -430,7 +455,7 @@ struct EventListView: View {
                     Image(frameBackground.backgroundImageName ?? "")
                         .resizable()
                         .scaledToFit()
-                        .frame(height: 26)
+                        .frame(height: 28)
                         .overlay(
                             // 装饰符号（如果有）
                             Image(systemName: frameBackground.decorationSymbol)
@@ -444,7 +469,7 @@ struct EventListView: View {
                     // 如果没有设置背景或设为"无背景"，则使用事件类型颜色
                     RoundedRectangle(cornerRadius: 4)
                         .fill(event.type.color.opacity(0.15))
-                        .frame(height: 24)
+                        .frame(height: 26)
                 }
                 
                 // 事件名称
@@ -456,6 +481,7 @@ struct EventListView: View {
                     .shadow(color: event.frameBackgroundName != nil && event.frameBackgroundName != "无背景" ? .black.opacity(0.5) : .clear, radius: 1, x: 0, y: 1)
                     .padding(.horizontal, 6)
             }
+            .frame(width: 95)
             .id("background-\(event.id)-\(event.frameBackgroundName ?? "")")
             
             // 显示剩余天数
@@ -468,7 +494,7 @@ struct EventListView: View {
                 .font(.system(size: 12))
                 .foregroundColor(.gray)
         }
-        .frame(width: 95, height: 140)
+        .frame(width: 100, height: 160)
         .onAppear {
             // 在卡片出现时确保加载图片
             if let imageName = event.imageName, !imageName.isEmpty {
