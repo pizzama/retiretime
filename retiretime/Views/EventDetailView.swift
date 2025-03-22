@@ -2246,6 +2246,7 @@ struct ChildEventEditView: View {
     @State private var name: String
     @State private var date: Date
     @State private var notes: String
+    @State private var showingDeleteAlert = false // 添加删除警告状态
     
     let eventStore: EventStore
     let childEvent: Event
@@ -2297,11 +2298,43 @@ struct ChildEventEditView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .disabled(name.isEmpty)
                 }
+                
+                // 添加删除子事件的区域
+                Section {
+                    Button(action: {
+                        showingDeleteAlert = true
+                    }) {
+                        HStack {
+                            Spacer()
+                            Text("删除子事件")
+                                .foregroundColor(.red)
+                            Spacer()
+                        }
+                    }
+                }
             }
             .navigationTitle("编辑子事件")
             .navigationBarItems(trailing: Button("取消") {
                 presentationMode.wrappedValue.dismiss()
             })
+            .alert(isPresented: $showingDeleteAlert) {
+                Alert(
+                    title: Text("删除子事件"),
+                    message: Text("确定要删除这个子事件吗？此操作无法撤销。"),
+                    primaryButton: .destructive(Text("删除")) {
+                        // 删除子事件
+                        eventStore.deleteChildEvent(childEvent)
+                        // 发送通知通知其他视图已删除
+                        NotificationCenter.default.post(
+                            name: Notification.Name("EventDeleted"),
+                            object: nil,
+                            userInfo: ["eventId": childEvent.id]
+                        )
+                        presentationMode.wrappedValue.dismiss()
+                    },
+                    secondaryButton: .cancel(Text("取消"))
+                )
+            }
         }
     }
 }
@@ -2326,6 +2359,7 @@ struct EventEditView: View {
     @State private var selectedRepeatType: RepeatType
     @State private var birthDate: Date?
     @State private var selectedGender: Gender?
+    @State private var showingDeleteAlert = false // 添加删除警告状态
     
     let eventStore: EventStore
     let event: Event
@@ -2545,11 +2579,43 @@ struct EventEditView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .disabled(name.isEmpty)
                 }
+                
+                // 添加删除事件的区域
+                Section {
+                    Button(action: {
+                        showingDeleteAlert = true
+                    }) {
+                        HStack {
+                            Spacer()
+                            Text("删除事件")
+                                .foregroundColor(.red)
+                            Spacer()
+                        }
+                    }
+                }
             }
             .navigationTitle("编辑事件")
             .navigationBarItems(trailing: Button("取消") {
                 presentationMode.wrappedValue.dismiss()
             })
+            .alert(isPresented: $showingDeleteAlert) {
+                Alert(
+                    title: Text("删除事件"),
+                    message: Text("确定要删除这个事件吗？此操作无法撤销。"),
+                    primaryButton: .destructive(Text("删除")) {
+                        // 删除事件
+                        eventStore.deleteEvent(event)
+                        // 发送通知通知其他视图已删除
+                        NotificationCenter.default.post(
+                            name: Notification.Name("EventDeleted"),
+                            object: nil,
+                            userInfo: ["eventId": event.id]
+                        )
+                        presentationMode.wrappedValue.dismiss()
+                    },
+                    secondaryButton: .cancel(Text("取消"))
+                )
+            }
         }
     }
 }
