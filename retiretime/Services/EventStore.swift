@@ -99,6 +99,24 @@ class EventStore: ObservableObject {
         )
     }
     
+    // 刷新所有缓存并通知首页
+    func refreshAllCachesAndNotifyHome() {
+        // 清除事件数据缓存
+        filteredEventsCache = [:]
+        categoriesWithEventsCache = [:]
+        
+        // 清除图片缓存
+        imageCache.clearCache()
+        
+        // 发送刷新首页通知
+        NotificationCenter.default.post(
+            name: Notification.Name("RefreshEventList"),
+            object: nil
+        )
+        
+        print("已清除所有缓存并发送刷新首页通知")
+    }
+    
     init() {
         // 使用App Group的UserDefaults实例，确保Widget和主应用可以共享数据
         if let groupUserDefaults = UserDefaults(suiteName: "group.com.fenghua.retiretime") {
@@ -186,7 +204,7 @@ class EventStore: ObservableObject {
             saveEvents()
             
             // 更新缓存而不是全部清除
-            updateCachesForUpdatedEvent(oldEvent, newEvent: event)
+//            updateCachesForUpdatedEvent(oldEvent, newEvent: event)
             
             WidgetCenter.shared.reloadAllTimelines() // 刷新所有 Widget
             

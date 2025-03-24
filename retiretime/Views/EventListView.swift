@@ -77,12 +77,24 @@ struct EventListView: View {
                     print("收到图片缓存刷新通知，刷新事件列表")
                     self.refreshEvents()
                 }
+                
+                // 添加从详情页返回时的刷新通知观察者
+                NotificationCenter.default.addObserver(
+                    forName: Notification.Name("RefreshEventList"),
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    // 刷新事件列表
+                    print("收到从详情页返回的刷新通知，刷新列表")
+                    self.refreshEvents()
+                }
             }
             .onDisappear {
                 // 移除通知观察者
                 NotificationCenter.default.removeObserver(self, name: Notification.Name("EventUpdated"), object: nil)
                 NotificationCenter.default.removeObserver(self, name: Notification.Name("ClearEventCache"), object: nil)
                 NotificationCenter.default.removeObserver(self, name: Notification.Name("RefreshImageCache"), object: nil)
+                NotificationCenter.default.removeObserver(self, name: Notification.Name("RefreshEventList"), object: nil)
             }
         }
     }

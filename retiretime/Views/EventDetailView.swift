@@ -491,6 +491,11 @@ struct EventDetailView: View {
             // 移除通知监听
             NotificationCenter.default.removeObserver(self, name: Notification.Name("RefreshImageCache"), object: nil)
             NotificationCenter.default.removeObserver(self, name: Notification.Name("EventUpdated"), object: nil)
+            
+            // 清除所有缓存并通知主页刷新
+            eventStore.refreshAllCachesAndNotifyHome()
+            
+            print("详情页关闭，已清除缓存并通知刷新主页")
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             // 当应用从后台回到前台时刷新事件数据
@@ -1726,9 +1731,14 @@ struct ChildEventDetailView: View {
             }
         }
         .onDisappear {
-            // 清除通知观察者
+            // 移除通知监听
             NotificationCenter.default.removeObserver(self, name: Notification.Name("RefreshImageCache"), object: nil)
             NotificationCenter.default.removeObserver(self, name: Notification.Name("EventUpdated"), object: nil)
+            
+            // 清除所有缓存并通知主页刷新
+            eventStore.refreshAllCachesAndNotifyHome()
+            
+            print("详情页关闭，已清除缓存并通知刷新主页")
         }
     }
     
